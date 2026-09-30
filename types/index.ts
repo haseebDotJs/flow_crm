@@ -47,6 +47,7 @@ export interface Task {
   description: string | null;
   due_at: string | null;
   status: TaskStatus;
+  source?: "manual" | "automation";
   created_at: string;
   updated_at: string;
   contacts?: Pick<Contact, "id" | "name"> | null;

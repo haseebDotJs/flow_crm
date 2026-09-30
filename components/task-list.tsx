@@ -14,6 +14,9 @@ export function TaskList({ tasks }: { tasks: Task[] }) {
             <div className="min-w-0">
               <p className={`text-sm font-medium ${t.status === "pending" ? "text-slate-900" : "text-slate-400 line-through"}`}>
                 {t.title}
+                {t.source === "automation" && (
+                  <Badge className="ml-2 bg-indigo-50 align-middle text-indigo-700 ring-indigo-200">Auto</Badge>
+                )}
               </p>
               <p className="mt-0.5 text-xs text-slate-500">
                 {t.contacts && (

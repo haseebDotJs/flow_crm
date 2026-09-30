@@ -15,6 +15,7 @@ FlowCRM understands that, finds the records, updates the pipeline, schedules the
 - Follow-up tasks: create, complete, cancel; grouped as overdue / today / tomorrow / upcoming
 - Realtime Voice AI assistant (LiveKit Agents + LiveKit Inference) with four structured CRM tools
 - Live UI updates when the assistant changes data (Supabase Realtime)
+- Workflow automation: moving an opportunity from New to Qualified automatically creates a "Follow up with <contact>" task two days out (marked "Auto")
 - Row Level Security on every CRM table; reproducible SQL migrations and seed data
 
 ## Architecture
@@ -110,8 +111,13 @@ The spoken request becomes: `find_contact` → `find_opportunities` → `update_
 
 - **Ambiguity:** multiple matching contacts or opportunities, or no match, make the agent ask instead of guess.
 - **Dates:** the browser sends its IANA timezone. The model writes a local date-time (e.g. `2026-10-02T10:00:00`) and the tool converts it to UTC using that timezone.
+- **Automation hand-off:** if you ask for your own follow-up while moving a deal to Qualified, `create_follow_up` adopts the automatic task and retimes it, so you never get two. If you give a day but no time, the assistant moves the deal and then asks what time you want.
 - **Duplicates:** `create_follow_up` is idempotent, and a unique index in the database also blocks duplicate pending follow-ups for the same opportunity, title and time.
 - **Live updates:** the agent writes to Postgres; the browser receives changes through Supabase Realtime and refreshes.
+
+## Workflow automation
+
+A Postgres trigger (`supabase/migrations/20261001010000_qualified_automation.sql`) creates the follow-up, so it fires no matter whether the change comes from the UI, the Voice AI, or anywhere else. It skips deals that already have a pending follow-up, and a unique index allows at most one pending automatic task per opportunity.
 
 ## Security
 
@@ -127,6 +133,8 @@ The spoken request becomes: `find_contact` → `find_opportunities` → `update_
 ```bash
 npm run test:rls      # RLS and integrity checks against your Supabase project (two users)
 npm run test:agent    # CRM tool tests (contact lookup, stage updates, follow-ups, dates)
+npm run test:automation  # New -> Qualified automation and its hand-off with the voice tool
+npm test              # all three of the above
 npm run e2e:voice     # needs `npm run agent:dev` running; sends the acceptance sentence as text
 npm run lint
 npm run build
@@ -136,7 +144,6 @@ npm run build
 
 ## Future improvements
 
-- Auto-create a follow-up when a deal moves New → Qualified
 - Activity / audit log
 - Workspaces and roles for teams
 - Creating contacts and opportunities by voice

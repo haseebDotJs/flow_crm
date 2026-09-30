@@ -13,7 +13,9 @@
     "test:agent": "tsx --test tests/agent-tools.test.ts",
     "agent:dev": "tsx agent/index.ts dev",
     "agent:start": "tsx agent/index.ts start",
-    "e2e:voice": "tsx tests/e2e-voice.ts"
+    "e2e:voice": "tsx tests/e2e-voice.ts",
+    "test:automation": "tsx --test tests/automation.test.ts",
+    "test": "npm run test:rls && npm run test:agent && npm run test:automation"
   },
   "dependencies": {
     "@livekit/agents": "^1.9.1",

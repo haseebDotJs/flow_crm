@@ -234,6 +234,19 @@ export async function createFollowUp(ctx: CrmContext, input: unknown) {
     // Idempotency: a repeated tool call must not create a second identical task.
     const existing = await findDuplicate(ctx, opportunity_id, title, due);
     if (existing) return taskResult(existing, ctx.timeZone, contact.data.name, true);
+
+    // Moving a deal to Qualified auto-creates a generic follow-up (source = 'automation').
+    // The user's explicit request takes over that task rather than adding a second one.
+    const adopted = await ctx.db
+      .from("tasks")
+      .update({ title, due_at: due.toISOString(), source: "manual" })
+      .eq("user_id", ctx.userId)
+      .eq("opportunity_id", opportunity_id)
+      .eq("source", "automation")
+      .eq("status", "pending")
+      .select("id, title, due_at")
+      .maybeSingle();
+    if (adopted.data) return { ...taskResult(adopted.data, ctx.timeZone, contact.data.name, false), adopted_automation: true };
   }
 
   const inserted = await ctx.db

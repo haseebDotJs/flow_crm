@@ -53,3 +53,19 @@ export interface Task {
   contacts?: Pick<Contact, "id" | "name"> | null;
   opportunities?: Pick<Opportunity, "id" | "title"> | null;
 }
+
+export type Role = "admin" | "member";
+
+export type ActivityActor = "user" | "voice" | "automation";
+
+export interface ActivityEntry {
+  id: string;
+  user_id: string;
+  entity_type: "contact" | "opportunity" | "task";
+  entity_id: string;
+  action: string;
+  summary: string;
+  actor: ActivityActor;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}

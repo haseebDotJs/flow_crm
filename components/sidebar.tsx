@@ -2,18 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CheckSquare, Kanban, LayoutDashboard, LogOut, Users, Workflow } from "lucide-react";
+import { Activity, CheckSquare, Kanban, LayoutDashboard, LogOut, Users, Workflow } from "lucide-react";
 import { logout } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
+import type { Role } from "@/types";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/pipeline", label: "Pipeline", icon: Kanban },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
+  { href: "/activity", label: "Activity", icon: Activity },
 ];
 
-export function Sidebar({ userName }: { userName: string }) {
+export function Sidebar({ userName, role }: { userName: string; role: Role }) {
   const pathname = usePathname();
 
   return (
@@ -39,9 +41,12 @@ export function Sidebar({ userName }: { userName: string }) {
         })}
       </nav>
       <div className="flex items-center justify-between gap-2 border-t border-slate-200 px-4 py-3">
-        <span className="truncate text-sm font-medium text-slate-700" title={userName}>
-          {userName}
-        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-slate-700" title={userName}>
+            {userName}
+          </p>
+          <p className="text-xs capitalize text-slate-400">{role}</p>
+        </div>
         <form action={logout}>
           <button type="submit" className="btn-secondary !px-2 !py-1.5" aria-label="Log out" title="Log out">
             <LogOut className="h-4 w-4" />

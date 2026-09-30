@@ -128,6 +128,10 @@ async function main() {
     ),
   );
 
+  // Demo user is an admin; start with an empty activity log (seeding itself isn't user activity).
+  await must(admin.from("profiles").update({ role: "admin" }).eq("id", userId));
+  await must(admin.from("activity_log").delete().eq("user_id", userId));
+
   console.log(`Seeded demo data for ${DEMO_EMAIL} (password in supabase/seed/seed.ts).`);
 }
 

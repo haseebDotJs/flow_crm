@@ -104,6 +104,16 @@ async function main() {
   const tomorrow = new Date(Date.now() + 86_400_000);
   const ymd = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
   assert.equal(ymd(due), ymd(tomorrow), "follow-up should be tomorrow");
+  // The assistant's changes must be attributed to the Voice AI in the activity log.
+  const { data: logs } = await db
+    .from("activity_log")
+    .select("action, summary, actor")
+    .eq("entity_id", opp!.id)
+    .order("created_at", { ascending: true });
+  console.log("Activity:", JSON.stringify(logs));
+  const stage = logs?.filter((l) => l.action === "stage_changed").at(-1);
+  assert.equal(stage?.actor, "voice", "stage change should be attributed to voice");
+
   console.log("E2E PASS");
   process.exit(0);
 }

@@ -20,6 +20,7 @@ export function RealtimeRefresh() {
       .on("postgres_changes", { event: "*", schema: "public", table: "opportunities" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "contacts" }, refresh)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_log" }, refresh)
       .subscribe();
     return () => {
       clearTimeout(timer);

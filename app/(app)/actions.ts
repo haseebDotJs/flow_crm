@@ -66,7 +66,7 @@ async function requireUser() {
 }
 
 function revalidateAll() {
-  ["/dashboard", "/contacts", "/pipeline", "/tasks"].forEach((p) => revalidatePath(p));
+  ["/dashboard", "/contacts", "/pipeline", "/tasks", "/activity"].forEach((p) => revalidatePath(p));
   revalidatePath("/contacts/[id]", "page");
   revalidatePath("/opportunities/[id]", "page");
 }

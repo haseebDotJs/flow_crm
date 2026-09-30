@@ -15,6 +15,8 @@ FlowCRM understands that, finds the records, updates the pipeline, schedules the
 - Follow-up tasks: create, complete, cancel; grouped as overdue / today / tomorrow / upcoming
 - Realtime Voice AI assistant (LiveKit Agents + LiveKit Inference) with four structured CRM tools
 - Live UI updates when the assistant changes data (Supabase Realtime)
+- Activity log: every create/update/delete of contacts, deals and tasks is recorded and labeled as made by you, the Voice AI, or automation (Activity page and dashboard card)
+- Basic role field (`admin` / `member`) on profiles, shown in the sidebar
 - Workflow automation: moving an opportunity from New to Qualified automatically creates a "Follow up with <contact>" task two days out (marked "Auto")
 - Row Level Security on every CRM table; reproducible SQL migrations and seed data
 
@@ -88,7 +90,7 @@ Open http://localhost:3000, log in with the demo user, click **Talk to your CRM*
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | web, agent, seed | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | web, agent | Publishable (anon) key. Safe for browsers; data access is governed by RLS |
-| `SUPABASE_SECRET_KEY` | seed script only | Secret key that bypasses RLS. Used only to create the demo user and data. Never used by the web app or agent |
+| `SUPABASE_SECRET_KEY` | seed script and tests only | Secret key that bypasses RLS. Used only to create the demo user/data (and test users). Never used by the web app or agent |
 | `LIVEKIT_URL` | web (server), agent | LiveKit Cloud WebSocket URL, `wss://…` |
 | `LIVEKIT_API_KEY` | web (server), agent | LiveKit API key |
 | `LIVEKIT_API_SECRET` | web (server), agent | LiveKit API secret |
@@ -119,6 +121,12 @@ The spoken request becomes: `find_contact` → `find_opportunities` → `update_
 
 A Postgres trigger (`supabase/migrations/20261001010000_qualified_automation.sql`) creates the follow-up, so it fires no matter whether the change comes from the UI, the Voice AI, or anywhere else. It skips deals that already have a pending follow-up, and a unique index allows at most one pending automatic task per opportunity.
 
+## Activity log and roles
+
+- **Activity log:** Postgres triggers write to `activity_log` whenever contacts, opportunities or tasks change, so the log is complete regardless of how the change was made. Rows are readable only by their owner and cannot be inserted, edited or deleted by users (only the `SECURITY DEFINER` triggers write them).
+- **Who acted:** the Voice AI sends an `x-flowcrm-actor: voice` header with its requests, and the trigger reads it. This label is informational; it only affects how a user's own entries are labeled and is not a security boundary.
+- **Roles:** `profiles.role` is `member` by default. Users cannot change it (only `full_name` is editable by them); change it with the service key or the SQL editor, e.g. `update profiles set role = 'admin' where id = '<user id>'`. No feature is gated by role yet.
+
 ## Security
 
 - **Authentication:** Supabase Auth; `proxy.ts` validates the session on every request and redirects anonymous users to `/login`.
@@ -134,7 +142,8 @@ A Postgres trigger (`supabase/migrations/20261001010000_qualified_automation.sql
 npm run test:rls      # RLS and integrity checks against your Supabase project (two users)
 npm run test:agent    # CRM tool tests (contact lookup, stage updates, follow-ups, dates)
 npm run test:automation  # New -> Qualified automation and its hand-off with the voice tool
-npm test              # all three of the above
+npm run test:activity    # activity log, actor attribution, log access control, role rules
+npm test              # all four of the above
 npm run e2e:voice     # needs `npm run agent:dev` running; sends the acceptance sentence as text
 npm run lint
 npm run build
@@ -144,6 +153,5 @@ npm run build
 
 ## Future improvements
 
-- Activity / audit log
-- Workspaces and roles for teams
+- Workspaces and role-based permissions for teams
 - Creating contacts and opportunities by voice

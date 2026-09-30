@@ -55,7 +55,8 @@ export default defineAgent({
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
       {
         auth: { persistSession: false, autoRefreshToken: false },
-        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        // `x-flowcrm-actor` lets the activity log label these changes as made by voice.
+        global: { headers: { Authorization: `Bearer ${accessToken}`, "x-flowcrm-actor": "voice" } },
       },
     );
     const { data, error } = await db.auth.getUser(accessToken);

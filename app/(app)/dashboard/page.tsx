@@ -2,15 +2,16 @@ import Link from "next/link";
 import { ErrorState, EmptyState } from "@/components/states";
 import { TaskList } from "@/components/task-list";
 import { Badge } from "@/components/badge";
+import { ActivityList } from "@/components/activity-list";
 import { createClient } from "@/lib/supabase/server";
 import { STAGE_STYLES, formatCurrency } from "@/lib/utils";
-import { STAGES, STAGE_LABELS, type Stage, type Task } from "@/types";
+import { STAGES, STAGE_LABELS, type ActivityEntry, type Stage, type Task } from "@/types";
 
 export const metadata = { title: "Dashboard · FlowCRM" };
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const [contacts, opps, tasks] = await Promise.all([
+  const [contacts, opps, tasks, activity] = await Promise.all([
     supabase.from("contacts").select("id", { count: "exact", head: true }),
     supabase.from("opportunities").select("stage, value"),
     supabase
@@ -19,9 +20,10 @@ export default async function DashboardPage() {
       .eq("status", "pending")
       .order("due_at", { ascending: true, nullsFirst: false })
       .limit(6),
+    supabase.from("activity_log").select("*").order("created_at", { ascending: false }).limit(5),
   ]);
 
-  const error = contacts.error || opps.error || tasks.error;
+  const error = contacts.error || opps.error || tasks.error || activity.error;
   if (error) return <ErrorState message={`Could not load dashboard: ${error.message}`} />;
 
   const rows = (opps.data ?? []) as { stage: Stage; value: number }[];
@@ -91,6 +93,18 @@ export default async function DashboardPage() {
           )}
         </section>
       </div>
+
+      <section className="card">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+          <h2 className="text-sm font-semibold">Recent activity</h2>
+          <Link href="/activity" className="text-sm text-indigo-600 hover:underline">View all</Link>
+        </div>
+        {activity.data && activity.data.length > 0 ? (
+          <ActivityList entries={activity.data as ActivityEntry[]} />
+        ) : (
+          <div className="p-4"><EmptyState title="No activity yet" /></div>
+        )}
+      </section>
     </div>
   );
 }

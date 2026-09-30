@@ -1,0 +1,48 @@
+{
+  "name": "flowcrm",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "seed": "tsx supabase/seed/seed.ts",
+    "typecheck": "tsc --noEmit",
+    "test:rls": "tsx --test tests/rls.test.ts",
+    "test:agent": "tsx --test tests/agent-tools.test.ts",
+    "agent:dev": "tsx agent/index.ts dev",
+    "agent:start": "tsx agent/index.ts start",
+    "e2e:voice": "tsx tests/e2e-voice.ts"
+  },
+  "dependencies": {
+    "@livekit/agents": "^1.9.1",
+    "@livekit/agents-plugin-silero": "^1.9.1",
+    "@livekit/components-react": "^2.9.24",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
+    "livekit-client": "^2.22.3",
+    "livekit-server-sdk": "^2.19.1",
+    "lucide-react": "^1.49.0",
+    "next": "16.3.8",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "sonner": "^2.0.8",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^18.0.5",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.8",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

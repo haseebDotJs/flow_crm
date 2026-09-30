@@ -1,28 +1,30 @@
 # FlowCRM — AI-Powered Sales CRM
 
-## 1. Objective
+## 1. Product Objective
 
 Build a polished, lightweight SaaS CRM called **FlowCRM**.
 
-The core purpose is to demonstrate one complete workflow:
+The core purpose is to provide a simple sales CRM where users can manage contacts, opportunities, pipeline stages, and follow-up tasks, while also interacting with their CRM through a realtime Voice AI assistant.
 
-> A signed-in user can tell a Voice AI agent:
+The most important workflow is:
+
+> A signed-in user can tell the Voice AI:
 >
 > "Move John Smith to Qualified and create a follow-up for tomorrow at 10 AM."
 
-The Voice AI should understand the request, find the correct CRM records, invoke structured CRM tools, update the database, create the follow-up, and reflect the changes in the UI.
+The Voice AI should understand the request, find the relevant CRM records, invoke structured CRM tools, update the database, create the follow-up, and reflect the changes in the UI.
 
-The application should feel like a coherent real product, not a collection of unrelated demos.
+The application should feel like a coherent real-world SaaS product rather than a collection of disconnected features.
 
 ---
 
-# 2. CRITICAL DEVELOPMENT PRIORITY
+# 2. Development Priorities
 
-This project must be built in priority order.
+Build the application in the following order.
 
-## P0 — Mandatory
+## P0 — Core Product
 
-The following must be fully functional before anything else:
+These features are required:
 
 1. Supabase authentication
 2. Protected CRM dashboard
@@ -38,22 +40,24 @@ The following must be fully functional before anything else:
 12. README and `.env.example`
 13. Successful production build
 
-## P1 — Only after P0 is completely working
+## P1 — Optional Enhancements
 
-Only add these if P0 is stable and there is sufficient time/tokens:
+Only implement these after P0 is completely functional and stable:
 
 * Basic automated workflow when an opportunity becomes Qualified
-* Basic audit/activity log
+* Basic activity/audit log
 * Basic role field
 * Workspace abstraction
 * Better ambiguity handling
 * Additional UI polish
 
-## P2 — Do not implement unless everything above is already complete
+## P2 — Future Features
+
+Do not implement these unless all P0 and P1 functionality is already complete:
 
 * Advanced RBAC
 * Organization management
-* Invitations
+* Team invitations
 * Calendar integrations
 * Email integrations
 * Complex automation engine
@@ -65,19 +69,19 @@ Only add these if P0 is stable and there is sufficient time/tokens:
 * n8n
 * FastAPI
 * Redis
-* Additional infrastructure
 * Billing
-* Notifications system
+* Complex notifications
+* Additional infrastructure
 
-### VERY IMPORTANT
+### Important
 
-Do NOT attempt to implement every possible feature before validating the core workflow.
+Do not attempt to implement every possible feature before validating the core workflow.
 
 If implementation complexity, token usage, or time becomes a concern:
 
 **Stop adding features and make P0 complete and reliable.**
 
-A smaller fully working product is preferable to a larger partially working product.
+A smaller fully working product is preferable to a larger partially implemented product.
 
 ---
 
@@ -117,26 +121,13 @@ The product name is:
 
 **FlowCRM**
 
-Do not use words such as:
-
-* assessment
-* assignment
-* challenge
-* evaluation
-* hiring
-* interview
-* candidate
-* recruitment test
-
-in the application UI, repository name, README, metadata, or project description.
-
 Treat FlowCRM as a standalone SaaS product.
 
 ---
 
 # 5. Core User Flow
 
-The most important workflow is:
+The primary workflow is:
 
 1. User opens FlowCRM.
 2. User logs in.
@@ -247,7 +238,7 @@ cancelled
 
 Do not introduce a complicated workspace schema during P0.
 
-If P0 is complete and there is plenty of time, workspace support can be added later.
+If P0 is complete and there is sufficient time, workspace support can be added later.
 
 ---
 
@@ -259,7 +250,7 @@ Authenticated users should only be able to access their own CRM records.
 
 Do not rely only on frontend UI restrictions.
 
-The backend/database must enforce authorization.
+The database must enforce authorization.
 
 Never expose:
 
@@ -295,15 +286,7 @@ Authenticated users should be able to access the CRM.
 
 Create a basic profile row after signup if appropriate.
 
-Do not build:
-
-* Google login
-* GitHub login
-* MFA
-* invitation systems
-* complex account management
-
-unless everything else is already complete.
+Do not build social authentication unless everything else is already complete.
 
 ---
 
@@ -642,9 +625,7 @@ Do not invent CRM records.
 
 # 18. Follow-up Date Handling
 
-The agent should understand natural language dates.
-
-For example:
+The agent should understand natural-language dates such as:
 
 ```text
 tomorrow
@@ -848,7 +829,7 @@ flowcrm/
 └── package.json
 ```
 
-Adjust the structure if the current Next.js/LiveKit best practices suggest a better organization.
+Adjust the structure if current Next.js/LiveKit best practices suggest a better organization.
 
 Keep the web application and Voice Agent logically separated.
 
@@ -892,7 +873,7 @@ At minimum, validate:
 
 If automated tests are practical, implement them.
 
-Otherwise, perform a clear manual verification of the golden workflow.
+Otherwise, perform clear manual verification of the primary workflow.
 
 ---
 
@@ -1011,7 +992,7 @@ Do not begin by generating large amounts of code blindly.
 
 After the plan is approved:
 
-### Phase 1
+### Phase 1 — Foundation
 
 Implement:
 
@@ -1024,7 +1005,7 @@ Implement:
 * opportunities
 * tasks
 
-### Phase 2
+### Phase 2 — CRM
 
 Implement:
 
@@ -1032,7 +1013,7 @@ Implement:
 * seed data
 * polished basic UI
 
-### Phase 3
+### Phase 3 — Voice AI
 
 Implement:
 
@@ -1042,19 +1023,19 @@ Implement:
 * tool authorization
 * core voice workflow
 
-### Phase 4
+### Phase 4 — Validation
 
-Test the complete workflow.
+Test the complete primary workflow end-to-end.
 
-### Phase 5
+### Phase 5 — Optional Enhancements
 
-Only if the complete workflow is stable, consider P1 features.
+Only if the primary workflow is completely stable, consider P1 features.
 
 ---
 
-# 30. Core Acceptance Test
+# 30. Primary Acceptance Test
 
-Before declaring the project complete, manually verify this exact scenario.
+Before considering the product complete, manually verify this exact scenario.
 
 Initial state:
 
@@ -1095,7 +1076,7 @@ If any of these fail, prioritize fixing the failure over adding new features.
 
 # 31. Final Quality Gate
 
-Before declaring the project complete:
+Before considering the product complete:
 
 * `npm run lint` passes.
 * `npm run build` passes.
@@ -1116,13 +1097,10 @@ Before declaring the project complete:
 * Secrets are not exposed to client-side code.
 * README setup instructions are accurate.
 * `.env.example` is complete.
-* No assessment/hiring terminology exists in the product.
 
 ---
 
-# 32. Final Instruction
-
-The primary objective is NOT to build the largest possible CRM.
+# 32. Final Engineering Principle
 
 The primary objective is to build a **small, polished, reliable CRM with one excellent Voice AI workflow**.
 
@@ -1130,10 +1108,11 @@ Always prioritize:
 
 **working core functionality > security correctness > reliable AI tool calling > UI polish > additional features**
 
-If you have limited time or tokens:
+If time, tokens, or implementation complexity become limited:
 
 **STOP adding features and finish the core workflow.**
 
-Do not leave the project in a partially implemented state because of optional features.
+Do not leave core functionality partially implemented because of optional features.
 
+Only add optional enhancements after the primary workflow has been tested end-to-end and is working reliably.
 Only add P1/P2 features after the P0 workflow has been tested end-to-end and is working reliably.

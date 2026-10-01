@@ -22,7 +22,46 @@ FlowCRM understands that, finds the records, updates the pipeline, schedules the
 - Workflow automation: moving an opportunity from New to Qualified automatically creates a "Follow up with <contact>" task two days out (marked "Auto") with the default email template attached
 - Row Level Security on every CRM table; reproducible SQL migrations and seed data
 
+## Demo
+
+See **[docs/DEMO.md](docs/DEMO.md)** for the demo script, the exact voice phrases, a pre-flight checklist and troubleshooting. Before presenting, run `npm run seed` (clean data) and `npm run demo:check` (verifies everything).
+
 ## Architecture
+
+### System overview
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    UI["Next.js app<br/>Contacts, Pipeline, Tasks, Email, Activity"]
+    MIC["Voice panel<br/>(microphone)"]
+  end
+  subgraph Supabase
+    AUTH["Auth"]
+    DB[("PostgreSQL + RLS")]
+    CRON["pg_cron<br/>every minute (10 s in demo mode)"]
+    NET["pg_net"]
+    VAULT["Vault<br/>(email key)"]
+  end
+  LK["LiveKit Cloud<br/>speech-to-text, LLM, text-to-speech"]
+  AGENT["Voice agent<br/>7 validated CRM tools"]
+  RESEND["Resend<br/>(email)"]
+  EXT["n8n / Make / Zapier<br/>forms and ads"]
+
+  UI -->|"server actions (RLS)"| DB
+  UI --> AUTH
+  MIC <-->|audio| LK
+  LK <--> AGENT
+  AGENT -->|"runs as the user (RLS)"| DB
+  CRON -->|"due follow-ups"| DB
+  DB -->|"stage change trigger / send_task_email"| NET
+  NET -->|"signed webhook"| EXT
+  NET -->|email| RESEND
+  EXT -->|"POST /api/webhooks/leads"| UI
+  VAULT -.-> DB
+```
+
+### Details
 
 ```text
 Next.js (App Router)

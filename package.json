@@ -27,7 +27,8 @@
     "demo:apply": "tsx scripts/demo-mode.ts",
     "predev": "tsx scripts/demo-mode.ts",
     "test:demo": "tsx --test tests/demo-mode.test.ts",
-    "test:scheduler": "tsx --test tests/scheduler-live.test.ts"
+    "test:scheduler": "tsx --test tests/scheduler-live.test.ts",
+    "demo:check": "tsx scripts/demo-check.ts"
   },
   "dependencies": {
     "@livekit/agents": "^1.9.1",

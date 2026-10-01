@@ -68,6 +68,13 @@ async function main() {
     const before = replies.length;
     await room.localParticipant!.sendText(m, { topic: "lk.chat" });
     await waitFor(() => replies.length > before, 60_000, "agent reply");
+    if (process.env.E2E_SAFE === "1") {
+      // Demo mode: the REAL scheduler would email the demo inbox when the 30-second follow-up comes
+      // due. Read it, then delete it right away (the reply arrives seconds after the tool call).
+      const { data: soon } = await db.from("tasks").select("id, due_at").eq("opportunity_id", opp!.id).eq("status", "pending");
+      for (const t of soon ?? []) console.log(`  (safe mode) follow-up due in ${Math.round((new Date(t.due_at).getTime() - Date.now()) / 1000)} s, deleting it now`);
+      await db.from("tasks").delete().eq("opportunity_id", opp!.id);
+    }
     await sleep(5000); // let tool calls + any further sentences finish
   }
   await room.disconnect();

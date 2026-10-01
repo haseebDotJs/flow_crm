@@ -23,8 +23,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">{children}
+      {/* Browser extensions (e.g. ColorZilla's cz-shortcut-listen) inject attributes into <body>
+          before React loads. suppressHydrationWarning only ignores attribute differences on this
+          one element, not anything inside it. */}
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        {children}
         <Toaster richColors position="top-right" />
       </body>
     </html>

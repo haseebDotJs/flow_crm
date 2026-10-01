@@ -7,7 +7,7 @@ import { deleteTemplate, saveEmailSettings, saveTemplate } from "@/app/(app)/ema
 import { Badge } from "@/components/badge";
 import { Modal, useModalClose } from "@/components/modal";
 import { TEMPLATE_VARIABLES, renderTemplate, sampleVars } from "@/lib/email-template";
-import { formatDateTime } from "@/lib/utils";
+import { LocalTime } from "@/components/local-time";
 import type { EmailLogEntry, EmailTemplate } from "@/types";
 
 // ---------------------------------------------------------------------- status
@@ -289,7 +289,7 @@ export function EmailLogList({ entries }: { entries: EmailLogEntry[] }) {
             <p className="text-xs text-slate-500">
               To {e.to_email}
               {e.test_mode && e.intended_email ? ` (test mode, intended for ${e.intended_email})` : ""} ·{" "}
-              {formatDateTime(e.created_at)}
+              <LocalTime iso={e.created_at} />
             </p>
             {e.status === "failed" && e.error && <p className="mt-0.5 text-xs text-red-600">{e.error}</p>}
           </div>

@@ -13,7 +13,7 @@ import {
   setWebhookEnabled,
 } from "@/app/(app)/integrations/actions";
 import { Badge } from "@/components/badge";
-import { formatDateTime } from "@/lib/utils";
+import { LocalTime } from "@/components/local-time";
 
 export interface EndpointView {
   url: string;
@@ -194,7 +194,7 @@ export function WebhookPanel({ endpoint, deliveries }: { endpoint: EndpointView 
               <li key={d.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                 <span className="min-w-0 truncate">
                   <code className="text-xs">{d.event}</code>
-                  <span className="ml-2 text-xs text-slate-400">{formatDateTime(d.created_at)}</span>
+                  <span className="ml-2 text-xs text-slate-400"><LocalTime iso={d.created_at} /></span>
                 </span>
                 {statusBadge(d)}
               </li>
@@ -270,7 +270,13 @@ export function ApiKeysPanel({ keys, endpointUrl }: { keys: ApiKeyView[]; endpoi
                 <span className="font-medium">{k.name}</span>
                 <code className="ml-2 text-xs text-slate-500">{k.key_prefix}…</code>
                 <span className="ml-2 text-xs text-slate-400">
-                  {k.last_used_at ? `last used ${formatDateTime(k.last_used_at)}` : "never used"}
+                  {k.last_used_at ? (
+                    <>
+                      last used <LocalTime iso={k.last_used_at} />
+                    </>
+                  ) : (
+                    "never used"
+                  )}
                 </span>
               </span>
               <button

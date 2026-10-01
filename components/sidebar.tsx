@@ -17,13 +17,21 @@ const NAV = [
   { href: "/integrations", label: "Integrations", icon: Plug },
 ];
 
-export function Sidebar({ userName, role }: { userName: string; role: Role }) {
+export function Sidebar({ userName, role, demo = false }: { userName: string; role: Role; demo?: boolean }) {
   const pathname = usePathname();
 
   return (
     <aside className="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white md:h-screen md:w-60 md:border-b-0 md:border-r">
       <div className="flex items-center gap-2 px-5 py-4 text-lg font-semibold">
         <Workflow className="h-5 w-5 text-indigo-600" /> FlowCRM
+        {demo && (
+          <span
+            className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800"
+            title="Demo mode: Qualified follow-ups are due in 30 seconds and the scheduler runs every 10 seconds"
+          >
+            Demo
+          </span>
+        )}
       </div>
       <nav className="flex gap-1 overflow-x-auto px-3 pb-2 md:flex-1 md:flex-col md:pb-0">
         {NAV.map(({ href, label, icon: Icon }) => {

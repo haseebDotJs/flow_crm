@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, Loader2, Mail, Pencil, Play, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -19,6 +19,22 @@ const POLL_MS = 1200;
 const MAX_WAIT_MS = 45_000;
 
 type Phase = "idle" | "processing" | "done" | "failed";
+
+const subscribeTick = (notify: () => void) => {
+  const id = setInterval(notify, 1000);
+  return () => clearInterval(id);
+};
+
+/** Current time in whole seconds; null on the server and during hydration (no mismatch). */
+function useNowSeconds(): number | null {
+  return useSyncExternalStore(subscribeTick, () => Math.floor(Date.now() / 1000), () => null);
+}
+
+function formatCountdown(secs: number) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
+}
 
 function Step({ state, label, detail }: { state: "wait" | "run" | "ok" | "bad"; label: string; detail?: string }) {
   return (
@@ -222,6 +238,11 @@ export function EmailAutomation({ task }: { task: Task }) {
   const on = !!task.auto_email;
   const templateName = task.email_templates?.name;
   const hasEmail = !!task.contacts?.email;
+  // Live countdown for follow-ups that are about to be sent by the scheduler (visible in demos).
+  const nowSecs = useNowSeconds();
+  const dueSecs = task.due_at ? Math.floor(new Date(task.due_at).getTime() / 1000) : null;
+  const remaining = nowSecs !== null && dueSecs !== null ? dueSecs - nowSecs : null;
+  const soon = pending && on && status === "none" && remaining !== null && remaining < 600;
 
   // Nothing to show for plain follow-ups with automation off and no history.
   if (!on && status === "none") {
@@ -246,6 +267,12 @@ export function EmailAutomation({ task }: { task: Task }) {
       <Badge className="bg-indigo-50 text-indigo-700 ring-indigo-200">Sending…</Badge>
     ) : status === "failed" ? (
       <Badge className="bg-red-50 text-red-700 ring-red-200">Email failed</Badge>
+    ) : soon && remaining !== null ? (
+      remaining > 0 ? (
+        <Badge className="bg-amber-50 text-amber-800 ring-amber-200">Scheduled · sends in {formatCountdown(remaining)}</Badge>
+      ) : (
+        <Badge className="bg-indigo-50 text-indigo-700 ring-indigo-200">Due now · scheduler picking it up…</Badge>
+      )
     ) : pending && on ? (
       <Badge className="bg-slate-100 text-slate-600 ring-slate-200">Scheduled</Badge>
     ) : null;

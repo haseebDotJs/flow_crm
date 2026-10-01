@@ -184,13 +184,16 @@ export async function updateOpportunityStage(ctx: CrmContext, input: unknown) {
   if (previous === "new" && stage === "qualified") {
     const auto = await ctx.db
       .from("tasks")
-      .select("id")
+      .select("id, due_at")
       .eq("user_id", ctx.userId)
       .eq("opportunity_id", opportunity_id)
       .eq("source", "automation")
       .eq("status", "pending")
       .maybeSingle();
-    if (auto.data) defaultFollowUp = { in: "two days" };
+    // The interval differs in demo mode (30 seconds instead of 2 days), so report the real one.
+    if (auto.data) {
+      defaultFollowUp = { in: describeInterval(new Date(auto.data.due_at).getTime() - (ctx.now ?? (() => new Date()))().getTime()) };
+    }
   }
 
   return {
@@ -200,11 +203,23 @@ export async function updateOpportunityStage(ctx: CrmContext, input: unknown) {
     ...(defaultFollowUp && {
       default_follow_up: defaultFollowUp,
       note:
-        "A default follow-up was created automatically, due in two days. If the user asked for their own follow-up, " +
-        "do not mention it (create_follow_up will replace it). If the user asked for none, tell them it was added " +
-        "'in two days' and do not offer to create one.",
+        `A default follow-up was created automatically, due in ${defaultFollowUp.in}. If the user asked for their own ` +
+        "follow-up, do not mention it (create_follow_up will replace it). If the user asked for none, tell them it " +
+        `was added 'in ${defaultFollowUp.in}' and do not offer to create one.`,
     }),
   };
+}
+
+/** "about 30 seconds", "10 minutes", "5 hours", "two days": how far away a due time is, for speech. */
+export function describeInterval(ms: number): string {
+  const secs = Math.max(0, Math.round(ms / 1000));
+  if (secs < 90) return `about ${Math.max(10, Math.round(secs / 10) * 10)} seconds`;
+  const mins = Math.round(secs / 60);
+  if (mins < 90) return `${mins} minutes`;
+  const hours = Math.round(mins / 60);
+  if (hours < 36) return `${hours} hours`;
+  const days = Math.round(hours / 24);
+  return days === 2 ? "two days" : `${days} days`;
 }
 
 // ------------------------------------------------------------- follow-ups

@@ -14,9 +14,13 @@ import type { EmailLogEntry, EmailTemplate } from "@/types";
 export function StatusCard({
   providerConfigured,
   schedulerActive,
+  schedule,
+  demoMode,
 }: {
   providerConfigured: boolean;
   schedulerActive: boolean;
+  schedule: string | null;
+  demoMode: boolean;
 }) {
   const row = (ok: boolean, label: string, hint: string) => (
     <li className="flex items-start gap-2 text-sm">
@@ -41,7 +45,17 @@ export function StatusCard({
       {row(
         schedulerActive,
         schedulerActive ? "Scheduler running" : "Scheduler not running",
-        schedulerActive ? "Checks every minute for follow-ups that are due." : "The pg_cron job is missing; re-run the migrations.",
+        schedulerActive
+          ? `Checks for due follow-ups ${schedule === "* * * * *" ? "every minute" : `every ${schedule ?? "minute"}`}.`
+          : "The pg_cron job is missing; re-run the migrations.",
+      )}
+      {demoMode && (
+        <li className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <span className="font-semibold">Demo mode is ON.</span> A follow-up created when a deal moves to Qualified is due
+          in <strong>30 seconds</strong>, and the scheduler checks every 10 seconds, so the email goes out about 30–40 seconds
+          later. Set <code>DEMO=false</code> (or remove it) in <code>.env.local</code> and restart <code>npm run dev</code> to
+          return to normal timing.
+        </li>
       )}
     </ul>
   );

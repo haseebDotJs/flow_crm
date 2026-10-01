@@ -39,6 +39,8 @@ export default async function EmailPage() {
           <StatusCard
             providerConfigured={!!status.data?.provider_configured}
             schedulerActive={!!status.data?.scheduler_active}
+            schedule={(status.data?.scheduler_schedule as string | null) ?? null}
+            demoMode={!!status.data?.demo_mode}
           />
         </section>
         <section className="card">

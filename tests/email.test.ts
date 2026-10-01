@@ -255,6 +255,18 @@ describe("sending (stand-in endpoint, test mode on)", () => {
     }
   });
 
+  it("a follow-up that is not attached to a deal still sends (regression)", async () => {
+    // Used to fail with "The contact has no email address" because of a stale `not found` check.
+    const id = await mkTask({ opportunity_id: null });
+    const r = await send(id);
+    assert.equal(r.ok, true, r.message);
+    await settle(id);
+    const [log] = await logFor(id);
+    assert.equal(log.status, "sent");
+    assert.equal(log.subject, "[TEST -> john@acme.com] Next steps for ", "deal title is simply empty");
+    assert.match(log.body, /^Hi John,/);
+  });
+
   it("honours a custom test recipient", async () => {
     await demo.from("profiles").update({ email_test_recipient: "me@example.com" }).eq("id", demoId);
     try {
@@ -325,29 +337,57 @@ describe("failures", () => {
 
 describe("scheduler", () => {
   it("sends only follow-ups that are due and have automation on", async () => {
-    const due = await mkTask({ due_at: future(2500) });
-    const notDue = await mkTask({ due_at: future(86_400_000) });
-    const off = await mkTask({ due_at: future(2500), auto_email: false });
-    await sleep(3500);
+    // Uses a throwaway user, not the demo account: the REAL scheduler also runs every minute, and
+    // if it ever won a race with this test, a throwaway user's recipient (an @flowcrm.test address,
+    // not the Resend account's) is rejected by Resend, so no email can reach a real inbox.
+    const pw = `Tmp-${Math.random().toString(36).slice(2)}-Pass1`;
+    const email = `sched-${Date.now()}@flowcrm.test`;
+    const created = await admin.auth.admin.createUser({ email, password: pw, email_confirm: true });
+    const uid = created.data.user!.id;
+    try {
+      const sc = (await signIn(email, pw)).client;
+      const { data: tpl } = await sc.from("email_templates").select("id").eq("name", TEMPLATE).single();
+      const { data: contact } = await sc
+        .from("contacts")
+        .insert({ user_id: uid, name: "Sched Test", email: "sched@example.com", company: "Schedco" })
+        .select("id")
+        .single();
+      const mk = async (over: Record<string, unknown>) => {
+        const { data, error } = await sc
+          .from("tasks")
+          .insert({ user_id: uid, contact_id: contact!.id, title: `Sched ${seq++}`, auto_email: true, email_template_id: tpl!.id, ...over })
+          .select("id")
+          .single();
+        assert.equal(error, null, error?.message);
+        return data!.id as string;
+      };
 
-    const { data, error } = await admin.rpc("process_due_follow_up_emails", { p_endpoint: STUB });
-    assert.equal(error, null);
-    assert.ok(Number(data) >= 1);
+      // Created already due (1 s ago) and processed immediately, so the race window is well under a second.
+      const due = await mk({ due_at: new Date(Date.now() - 1000).toISOString() });
+      const notDue = await mk({ due_at: future(86_400_000) });
+      const off = await mk({ due_at: new Date(Date.now() - 1000).toISOString(), auto_email: false });
 
-    await settle(due);
-    const states = await Promise.all(
-      [due, notDue, off].map(async (id) => (await demo.from("tasks").select("status, email_status").eq("id", id).single()).data!),
-    );
-    assert.deepEqual(states[0], { status: "completed", email_status: "sent" });
-    assert.deepEqual(states[1], { status: "pending", email_status: "none" }, "not due yet");
-    assert.deepEqual(states[2], { status: "pending", email_status: "none" }, "automation off");
+      const { data, error } = await admin.rpc("process_due_follow_up_emails", { p_endpoint: STUB });
+      assert.equal(error, null);
+      assert.ok(Number(data) >= 1);
+
+      await settle(due);
+      const states = await Promise.all(
+        [due, notDue, off].map(async (id) => (await sc.from("tasks").select("status, email_status").eq("id", id).single()).data!),
+      );
+      assert.deepEqual(states[0], { status: "completed", email_status: "sent" });
+      assert.deepEqual(states[1], { status: "pending", email_status: "none" }, "not due yet");
+      assert.deepEqual(states[2], { status: "pending", email_status: "none" }, "automation off");
+    } finally {
+      await admin.auth.admin.deleteUser(uid);
+    }
   });
 
   it("is registered in the database and reports status without leaking secrets", async () => {
     const { data } = await demo.rpc("automation_status");
     assert.equal(data.scheduler_active, true);
     assert.equal(typeof data.provider_configured, "boolean");
-    assert.deepEqual(Object.keys(data).sort(), ["provider_configured", "scheduler_active"]);
+    assert.deepEqual(Object.keys(data).sort(), ["demo_mode", "provider_configured", "scheduler_active", "scheduler_schedule"]);
   });
 });
 

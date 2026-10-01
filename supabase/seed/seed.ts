@@ -147,6 +147,11 @@ async function main() {
   await must(admin.from("webhook_deliveries").delete().eq("user_id", userId));
   await must(admin.from("webhook_endpoints").delete().eq("user_id", userId));
   await must(admin.from("api_keys").delete().eq("user_id", userId));
+  // Demo mode (DEMO in .env.local): 30-second follow-ups and a 10-second scheduler.
+  const demo = ["true", "1", "yes", "on"].includes((process.env.DEMO ?? "").trim().toLowerCase());
+  await must(admin.rpc("set_demo_mode", { p_on: demo }));
+  console.log(demo ? "Demo mode ON (30 s follow-ups, scheduler every 10 s)." : "Demo mode off.");
+
   // Test recipient for demo emails (EMAIL_TEST_RECIPIENT in .env.local). With Resend's sandbox
   // sender this must be your Resend account's email. If unset, whatever is already saved is kept.
   const recipient = process.env.EMAIL_TEST_RECIPIENT?.trim();

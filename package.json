@@ -15,7 +15,7 @@
     "agent:start": "tsx agent/index.ts start",
     "e2e:voice": "tsx tests/e2e-voice.ts",
     "test:automation": "tsx --test tests/automation.test.ts",
-    "test": "npm run test:rls && npm run test:agent && npm run test:followups && npm run test:automation && npm run test:activity && npm run test:email && npm run test:email-render && npm run test:integrations && npm run test:integrations-app && npm run test:auth-session",
+    "test": "npm run test:rls && npm run test:agent && npm run test:followups && npm run test:automation && npm run test:activity && npm run test:email && npm run test:email-render && npm run test:demo && npm run test:integrations && npm run test:integrations-app && npm run test:auth-session",
     "test:activity": "tsx --test tests/activity.test.ts",
     "test:integrations": "tsx --test tests/integrations.test.ts",
     "test:integrations-app": "tsx --test tests/integrations-app.test.ts",
@@ -23,7 +23,11 @@
     "email:setup": "tsx scripts/email-setup.ts",
     "test:email": "tsx --test tests/email.test.ts",
     "test:email-render": "tsx --test tests/email-render.test.ts",
-    "test:auth-session": "tsx --test tests/auth-session.test.ts"
+    "test:auth-session": "tsx --test tests/auth-session.test.ts",
+    "demo:apply": "tsx scripts/demo-mode.ts",
+    "predev": "tsx scripts/demo-mode.ts",
+    "test:demo": "tsx --test tests/demo-mode.test.ts",
+    "test:scheduler": "tsx --test tests/scheduler-live.test.ts"
   },
   "dependencies": {
     "@livekit/agents": "^1.9.1",

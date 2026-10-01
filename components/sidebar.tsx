@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, CheckSquare, Kanban, LayoutDashboard, LogOut, Users, Workflow } from "lucide-react";
+import { Activity, CheckSquare, Kanban, LayoutDashboard, LogOut, Plug, Users, Workflow } from "lucide-react";
 import { logout } from "@/app/(auth)/actions";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types";
@@ -13,6 +13,7 @@ const NAV = [
   { href: "/pipeline", label: "Pipeline", icon: Kanban },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/activity", label: "Activity", icon: Activity },
+  { href: "/integrations", label: "Integrations", icon: Plug },
 ];
 
 export function Sidebar({ userName, role }: { userName: string; role: Role }) {

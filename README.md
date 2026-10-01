@@ -17,6 +17,7 @@ FlowCRM understands that, finds the records, updates the pipeline, schedules the
 - Live UI updates when the assistant changes data (Supabase Realtime)
 - Activity log: every create/update/delete of contacts, deals and tasks is recorded and labeled as made by you, the Voice AI, or automation (Activity page and dashboard card)
 - Basic role field (`admin` / `member`) on profiles, shown in the sidebar
+- Integrations: signed outbound webhook on every stage change (for n8n / Make / Zapier) and an API-key-protected inbound lead endpoint
 - Workflow automation: moving an opportunity from New to Qualified automatically creates a "Follow up with <contact>" task two days out (marked "Auto")
 - Row Level Security on every CRM table; reproducible SQL migrations and seed data
 
@@ -34,6 +35,11 @@ Browser (mic)  ──►  LiveKit Cloud  ◄──►  Voice Agent (Node, agent/
                                    CRM tools (validated, per-user)
                                               ↓
                                      Supabase (RLS as the user)
+```
+
+```text
+Outbound:  Stage change (UI / Voice AI / automation) → Postgres trigger → pg_net → your webhook URL (HMAC-signed)
+Inbound:   Form / n8n / Zapier → POST /api/webhooks/leads → ingest_lead() (API key checked in the DB) → contact + opportunity
 ```
 
 - `app/`, `components/`, `lib/`: the Next.js web app (server components + server actions).
@@ -117,6 +123,53 @@ The spoken request becomes: `find_contact` → `find_opportunities` → `update_
 - **Duplicates:** `create_follow_up` is idempotent, and a unique index in the database also blocks duplicate pending follow-ups for the same opportunity, title and time.
 - **Live updates:** the agent writes to Postgres; the browser receives changes through Supabase Realtime and refreshes.
 
+## Integrations
+
+Open **Integrations** in the sidebar.
+
+### Outbound webhook (FlowCRM → n8n / Make / Zapier)
+
+Save an https URL and FlowCRM sends a signed `opportunity.stage_changed` event whenever a deal changes stage, whether the change came from the pipeline, the Voice AI or the automation. It is sent by Postgres itself (a trigger plus `pg_net`), so it can't be skipped by any code path, and a failing receiver never blocks the CRM update. The page shows recent deliveries with their HTTP status, and a **Send test event** button.
+
+```json
+{
+  "id": "6f1c…",
+  "event": "opportunity.stage_changed",
+  "created_at": "2026-10-02T09:15:00Z",
+  "data": {
+    "opportunity": { "id": "…", "title": "Acme Enterprise License", "value": 25000, "stage": "qualified", "previous_stage": "new" },
+    "contact": { "id": "…", "name": "John Smith", "email": "john@acme.com", "phone": null, "company": "Acme Inc." }
+  }
+}
+```
+
+Headers: `X-FlowCRM-Event`, `X-FlowCRM-Delivery`, `X-FlowCRM-Timestamp`, `X-FlowCRM-Signature: sha256=<hex>`.
+The signature is `HMAC_SHA256(secret, timestamp + "." + rawBody)`. Verify it on your side and reject old timestamps:
+
+```js
+const expected = "sha256=" + crypto.createHmac("sha256", SECRET).update(`${timestamp}.${rawBody}`).digest("hex");
+const valid = crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader));
+```
+
+To try it with n8n: add a **Webhook** node (POST), paste its production URL into FlowCRM, then move a deal on the pipeline (or by voice) and watch the execution appear.
+
+### Inbound lead API (anything → FlowCRM)
+
+Create a key on the Integrations page (it is shown once; only its SHA-256 hash is stored), then:
+
+```bash
+curl -X POST http://localhost:3000/api/webhooks/leads   -H "Authorization: Bearer fcrm_..."   -H "Content-Type: application/json"   -d '{"name":"Ada Lovelace","email":"ada@example.com","company":"Analytical Engines","value":12000}'
+```
+
+| Field | Notes |
+|---|---|
+| `name` | required |
+| `email`, `phone`, `company`, `notes` | optional; a contact with the same email is reused |
+| `value`, `opportunity_title` | optional; creates a **New** opportunity |
+
+Responses: `201` created, `401` bad/missing key, `422` invalid payload, `413` too large, `429` rate limited.
+The lead shows up in the pipeline and is labeled **Webhook** in the activity log.
+
 ## Workflow automation
 
 A Postgres trigger (`supabase/migrations/20261001010000_qualified_automation.sql`) creates the follow-up, so it fires no matter whether the change comes from the UI, the Voice AI, or anywhere else. It skips deals that already have a pending follow-up, and a unique index allows at most one pending automatic task per opportunity.
@@ -133,6 +186,8 @@ A Postgres trigger (`supabase/migrations/20261001010000_qualified_automation.sql
 - **RLS:** enabled on all tables; every policy restricts rows to `auth.uid() = user_id`. Composite foreign keys also prevent linking records across users.
 - **Agent runs as the user:** the web app embeds the user's Supabase access token in the LiveKit token metadata (signed with the LiveKit secret). The agent checks that the token belongs to the LiveKit participant identity, then creates a Supabase client authenticated as that user, so RLS applies to every query. The agent holds no service-role key.
 - **Tool validation:** every tool validates its input (UUIDs, stage enum, date parsing, same-owner checks) and scopes queries by user, independently of the LLM.
+- **Webhooks:** URLs must be https and are checked against loopback, private, link-local and cloud-metadata ranges (in the database and again, with DNS resolution, before the app sends a test event); redirects are never followed. Payloads are HMAC-signed with a per-user secret.
+- **Inbound API keys:** random 256-bit keys, stored only as SHA-256 hashes, shown once, revocable, never readable through the API. The key is verified inside a `SECURITY DEFINER` database function that writes only to the key owner's rows, so the public endpoint needs no service key. Input is validated and size-limited, with a per-user rate limit.
 - **No arbitrary SQL:** there is no `execute_sql`-style tool. The model only has the four functions above.
 - **Secrets:** keep them in `.env.local` (git-ignored). The LiveKit token route runs server-side only.
 
@@ -143,7 +198,9 @@ npm run test:rls      # RLS and integrity checks against your Supabase project (
 npm run test:agent    # CRM tool tests (contact lookup, stage updates, follow-ups, dates)
 npm run test:automation  # New -> Qualified automation and its hand-off with the voice tool
 npm run test:activity    # activity log, actor attribution, log access control, role rules
-npm test              # all four of the above
+npm run test:integrations      # outbound webhook (signature verified on real delivery) and inbound lead API
+npm run test:integrations-app  # SSRF guard + the lead endpoint over HTTP (needs `npm run dev` running)
+npm test              # everything above
 npm run e2e:voice     # needs `npm run agent:dev` running; sends the acceptance sentence as text
 npm run lint
 npm run build
@@ -155,3 +212,5 @@ npm run build
 
 - Workspaces and role-based permissions for teams
 - Creating contacts and opportunities by voice
+- A visual workflow builder (trigger → condition → action nodes) on top of the existing trigger/webhook model
+- Webhook retries with backoff, more event types, and per-key rate limits

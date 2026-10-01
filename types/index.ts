@@ -56,7 +56,7 @@ export interface Task {
 
 export type Role = "admin" | "member";
 
-export type ActivityActor = "user" | "voice" | "automation";
+export type ActivityActor = "user" | "voice" | "automation" | "webhook";
 
 export interface ActivityEntry {
   id: string;

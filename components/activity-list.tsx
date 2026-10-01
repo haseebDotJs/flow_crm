@@ -7,6 +7,7 @@ const ACTOR: Record<ActivityActor, { label: string; cls: string }> = {
   user: { label: "You", cls: "bg-slate-100 text-slate-600 ring-slate-200" },
   voice: { label: "Voice AI", cls: "bg-indigo-50 text-indigo-700 ring-indigo-200" },
   automation: { label: "Automation", cls: "bg-amber-50 text-amber-700 ring-amber-200" },
+  webhook: { label: "Webhook", cls: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
 };
 
 const ICON = { contact: Users, opportunity: Kanban, task: CheckSquare } as const;

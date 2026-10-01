@@ -43,7 +43,8 @@ async function main() {
   // ---------------------------------------------------------------- environment
   section("1. Environment");
   const major = Number(process.versions.node.split(".")[0]);
-  major >= 22 ? ok(`Node ${process.versions.node}`) : bad(`Node ${process.versions.node} is too old`, "Install Node 22+ (nvm use 22)");
+  if (major >= 22) ok(`Node ${process.versions.node}`);
+  else bad(`Node ${process.versions.node} is too old`, "Install Node 22+ (nvm use 22)");
 
   const required = [
     "NEXT_PUBLIC_SUPABASE_URL",
@@ -54,15 +55,15 @@ async function main() {
     "LIVEKIT_API_SECRET",
   ];
   const missing = required.filter((k) => !env(k));
-  missing.length === 0 ? ok("Supabase and LiveKit variables are set") : bad(`Missing in .env.local: ${missing.join(", ")}`, "Fill them in (see .env.example)");
+  if (missing.length === 0) ok("Supabase and LiveKit variables are set");
+  else bad(`Missing in .env.local: ${missing.join(", ")}`, "Fill them in (see .env.example)");
   if (env("LIVEKIT_URL") && !env("LIVEKIT_URL").startsWith("wss://")) bad("LIVEKIT_URL must start with wss://", "Prefix it with wss://");
-  env("RESEND_API_KEY") ? ok("RESEND_API_KEY is set") : warn("RESEND_API_KEY not set", "Add it and run npm run email:setup (needed for real emails)");
-  env("EMAIL_TEST_RECIPIENT")
-    ? ok("EMAIL_TEST_RECIPIENT is set")
-    : warn("EMAIL_TEST_RECIPIENT not set", "Set it to your Resend account email, then npm run seed");
-  ["true", "1", "yes", "on"].includes(env("DEMO").toLowerCase())
-    ? ok("DEMO=true (30-second scheduled emails)")
-    : warn("DEMO is not true", "Set DEMO=true to show the scheduler in ~40 s (otherwise follow-ups are due in 2 days)");
+  if (env("RESEND_API_KEY")) ok("RESEND_API_KEY is set");
+  else warn("RESEND_API_KEY not set", "Add it and run npm run email:setup (needed for real emails)");
+  if (env("EMAIL_TEST_RECIPIENT")) ok("EMAIL_TEST_RECIPIENT is set");
+  else warn("EMAIL_TEST_RECIPIENT not set", "Set it to your Resend account email, then npm run seed");
+  if (["true", "1", "yes", "on"].includes(env("DEMO").toLowerCase())) ok("DEMO=true (30-second scheduled emails)");
+  else warn("DEMO is not true", "Set DEMO=true to show the scheduler in ~40 s (otherwise follow-ups are due in 2 days)");
 
   if (missing.length > 0) return summary();
   const url = env("NEXT_PUBLIC_SUPABASE_URL");
@@ -88,33 +89,43 @@ async function main() {
 
   if (opp) {
     const { data: tasks } = await db.from("tasks").select("id").eq("opportunity_id", opp.id).eq("status", "pending");
-    (tasks?.length ?? 0) === 0 ? ok("No pending follow-ups on John's deal") : bad(`${tasks!.length} pending follow-up(s) already on John's deal`, "Run: npm run seed");
+    if ((tasks?.length ?? 0) === 0) ok("No pending follow-ups on John's deal");
+    else bad(`${tasks!.length} pending follow-up(s) already on John's deal`, "Run: npm run seed");
   }
 
   const { count: contacts } = await db.from("contacts").select("id", { count: "exact", head: true });
-  contacts === 4 ? ok("4 demo contacts") : warn(`${contacts} contacts (expected 4)`, "Run: npm run seed for a clean demo");
+  if (contacts === 4) ok("4 demo contacts");
+  else warn(`${contacts} contacts (expected 4)`, "Run: npm run seed for a clean demo");
 
   const { data: john } = await db.from("contacts").select("email").eq("name", "John Smith").maybeSingle();
-  john?.email ? ok("John Smith has an email address (needed for the email demo)") : bad("John Smith has no email address", "Run: npm run seed");
+  if (john?.email) ok("John Smith has an email address (needed for the email demo)");
+  else bad("John Smith has no email address", "Run: npm run seed");
 
   const { count: templates } = await db.from("email_templates").select("id", { count: "exact", head: true });
-  (templates ?? 0) >= 3 ? ok(`${templates} email templates`) : bad(`Only ${templates} email templates`, "Run: npm run seed");
+  if ((templates ?? 0) >= 3) ok(`${templates} email templates`);
+  else bad(`Only ${templates} email templates`, "Run: npm run seed");
 
   const { data: prof } = await db.from("profiles").select("role, email_test_mode, email_test_recipient").eq("id", uid).single();
-  prof?.email_test_mode ? ok("Email test mode is ON (emails go to your inbox, not to contacts)") : warn("Email test mode is OFF: emails would go to real contact addresses", "Turn it on in Email > Sending, or run npm run seed");
-  prof?.email_test_recipient ? ok("Test recipient is set") : bad("No test recipient set (Resend's sandbox will reject the email)", "Set EMAIL_TEST_RECIPIENT and run npm run seed");
+  if (prof?.email_test_mode) ok("Email test mode is ON (emails go to your inbox, not to contacts)");
+  else warn("Email test mode is OFF: emails would go to real contact addresses", "Turn it on in Email > Sending, or run npm run seed");
+  if (prof?.email_test_recipient) ok("Test recipient is set");
+  else bad("No test recipient set (Resend's sandbox will reject the email)", "Set EMAIL_TEST_RECIPIENT and run npm run seed");
 
   const { count: logs } = await db.from("activity_log").select("id", { count: "exact", head: true });
-  (logs ?? 0) === 0 ? ok("Activity log is empty (clean start)") : warn(`Activity log has ${logs} entries`, "Run npm run seed for a clean start");
+  if ((logs ?? 0) === 0) ok("Activity log is empty (clean start)");
+  else warn(`Activity log has ${logs} entries`, "Run npm run seed for a clean start");
 
   const { data: hook } = await db.from("webhook_endpoints").select("url").maybeSingle();
-  hook ? warn("An outbound webhook is already configured", "Fine if intended; otherwise npm run seed clears it") : ok("No outbound webhook yet (you'll add your webhook.site URL live)");
+  if (hook) warn("An outbound webhook is already configured", "Fine if intended; otherwise npm run seed clears it");
+  else ok("No outbound webhook yet (you'll add your webhook.site URL live)");
 
   // ---------------------------------------------------------- scheduler + email
   section("3. Scheduler and email");
   const { data: status } = await admin.rpc("automation_status");
-  status?.scheduler_active ? ok(`Scheduler is running (${status.scheduler_schedule})`) : bad("Scheduler job is not running", "Re-run migrations: npx supabase db push");
-  status?.provider_configured ? ok("Email provider key is stored in Vault") : bad("Email provider key is not stored", "Run: npm run email:setup");
+  if (status?.scheduler_active) ok(`Scheduler is running (${status.scheduler_schedule})`);
+  else bad("Scheduler job is not running", "Re-run migrations: npx supabase db push");
+  if (status?.provider_configured) ok("Email provider key is stored in Vault");
+  else bad("Email provider key is not stored", "Run: npm run email:setup");
   if (status?.demo_mode) ok("Demo mode is ON in the database (Qualified follow-ups due in 30 s)");
   else warn("Demo mode is OFF in the database", "Set DEMO=true and run npm run demo:apply");
   if (status?.demo_mode && status.scheduler_schedule !== "10 seconds") warn(`Scheduler schedule is '${status.scheduler_schedule}'`, "Run npm run demo:apply");
@@ -134,7 +145,8 @@ async function main() {
   section("5. Web app");
   try {
     const res = await fetch(`${APP_URL}/login`, { signal: AbortSignal.timeout(30_000) });
-    res.ok ? ok(`Web app is up at ${APP_URL}`) : bad(`Web app returned ${res.status}`, "Restart: npm run dev");
+    if (res.ok) ok(`Web app is up at ${APP_URL}`);
+    else bad(`Web app returned ${res.status}`, "Restart: npm run dev");
   } catch {
     bad(`Web app is not reachable at ${APP_URL}`, "Start it: npm run dev");
   }
@@ -173,9 +185,8 @@ async function checkAgent(accessToken: string, uid: string) {
     await room.connect(env("LIVEKIT_URL"), await token.toJwt());
     const started = Date.now();
     while (!greeting && Date.now() - started < 45_000) await sleep(500);
-    greeting
-      ? ok(`Agent joined and spoke in ${((Date.now() - started) / 1000).toFixed(1)} s: "${greeting}"`)
-      : bad("The agent did not respond within 45 s", "Start it with: npm run agent:dev (keep only ONE agent running)");
+    if (greeting) ok(`Agent joined and spoke in ${((Date.now() - started) / 1000).toFixed(1)} s: "${greeting}"`);
+    else bad("The agent did not respond within 45 s", "Start it with: npm run agent:dev (keep only ONE agent running)");
   } catch (e) {
     bad(`Could not join a LiveKit room (${(e as Error).message})`, "Check the LiveKit credentials");
   } finally {

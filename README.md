@@ -281,6 +281,11 @@ A Postgres trigger (`supabase/migrations/20261001010000_qualified_automation.sql
 - **No arbitrary SQL:** there is no `execute_sql`-style tool. The model only has the four functions above.
 - **Secrets:** keep them in `.env.local` (git-ignored). The LiveKit token route runs server-side only.
 
+## Known issues
+
+- `npm audit` reports 3 high-severity findings, all in `adm-zip`, a transitive dependency of the voice plugin's ML runtime (`@livekit/agents-plugin-silero` → `onnxruntime-node`). It is used at install time to unpack that library's own binaries; this app never opens user-supplied ZIP files, so the issues are not reachable here. The only available "fix" is a major downgrade of the LiveKit plugin, so it is left as is until upstream updates.
+- Dates in the Tasks and Activity lists are formatted on the server, so they use the server's timezone (fine locally; worth making viewer-local before deploying).
+
 ## Testing
 
 ```bash

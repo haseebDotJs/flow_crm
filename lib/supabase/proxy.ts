@@ -25,11 +25,20 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Validates the JWT signature and refreshes the session if needed.
+  // Validates the JWT signature and refreshes the session if needed (fast, no network call).
   const { data } = await supabase.auth.getClaims();
-  const isAuthed = !!data?.claims;
+  let isAuthed = !!data?.claims;
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+
+  // A revoked session (password reset, "sign out everywhere", deleted user) can still carry a
+  // JWT that has not expired, so a valid signature is not proof of a live session. Before
+  // sending someone AWAY from the login page, ask the Auth server. Without this, the app's
+  // own checks (which do ask the server) bounce them back to /login and the browser loops.
+  if (isAuthed && (isPublic || pathname === "/")) {
+    const { data: live } = await supabase.auth.getUser();
+    isAuthed = !!live.user;
+  }
 
   if (!isAuthed && !isPublic) {
     const url = request.nextUrl.clone();

@@ -77,6 +77,7 @@ Inbound:   Form / n8n / Zapier → POST /api/webhooks/leads → ingest_lead() (A
    ```bash
    npm run seed
    ```
+   Re-running the seed resets the demo user's password, which signs that user out everywhere; just log in again.
 6. **Create a LiveKit Cloud project** at https://cloud.livekit.io.
 7. **Configure LiveKit credentials** in `.env.local` (`LIVEKIT_URL` must start with `wss://`).
    The agent uses LiveKit Inference (speech-to-text, LLM, text-to-speech) billed through your LiveKit project, so no separate AI provider keys are needed.

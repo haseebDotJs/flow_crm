@@ -18,7 +18,8 @@
     "test": "npm run test:rls && npm run test:agent && npm run test:automation && npm run test:activity && npm run test:integrations && npm run test:integrations-app",
     "test:activity": "tsx --test tests/activity.test.ts",
     "test:integrations": "tsx --test tests/integrations.test.ts",
-    "test:integrations-app": "tsx --test tests/integrations-app.test.ts"
+    "test:integrations-app": "tsx --test tests/integrations-app.test.ts",
+    "test:followups": "tsx --test tests/followups.test.ts"
   },
   "dependencies": {
     "@livekit/agents": "^1.9.1",

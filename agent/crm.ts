@@ -178,29 +178,95 @@ export async function updateOpportunityStage(ctx: CrmContext, input: unknown) {
   if (error) return fail("db_error", "I couldn't update the opportunity.");
   if (!data) return fail("not_found", "That opportunity doesn't exist or isn't yours.");
 
+  // New -> Qualified triggers an automatic follow-up in the database; report it so the assistant
+  // can say so accurately (and so it never offers to "schedule one" that already exists).
+  let defaultFollowUp: { in: string } | undefined;
+  if (previous === "new" && stage === "qualified") {
+    const auto = await ctx.db
+      .from("tasks")
+      .select("id")
+      .eq("user_id", ctx.userId)
+      .eq("opportunity_id", opportunity_id)
+      .eq("source", "automation")
+      .eq("status", "pending")
+      .maybeSingle();
+    if (auto.data) defaultFollowUp = { in: "two days" };
+  }
+
   return {
     ok: true as const,
     changed: true,
     opportunity: { ...data, previous_stage: previous, contact: contactName },
+    ...(defaultFollowUp && {
+      default_follow_up: defaultFollowUp,
+      note:
+        "A default follow-up was created automatically, due in two days. If the user asked for their own follow-up, " +
+        "do not mention it (create_follow_up will replace it). If the user asked for none, tell them it was added " +
+        "'in two days' and do not offer to create one.",
+    }),
   };
 }
 
-// -------------------------------------------------------- create_follow_up
+// ------------------------------------------------------------- follow-ups
+/**
+ * Where the time came from. The assistant must never invent a time:
+ *  - user_stated:     the user said a time (or agreed to one the assistant suggested)
+ *  - not_specified:   the user gave only a day -> the tool refuses and tells the model to ask
+ */
+const timeSource = z.enum(["user_stated", "not_specified"]);
+
 export const createFollowUpInput = z.object({
   contact_id: uuid,
   opportunity_id: optionalUuid,
   title: z.string().trim().min(1).max(200),
   due_at: z.string().trim().min(1).max(100),
+  time_source: timeSource.default("user_stated"),
+  add_another: z.boolean().nullish(),
 });
 
 const PAST_GRACE_MS = 60_000;
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const TIME_REQUIRED = fail(
+  "time_required",
+  "The user has not chosen a time. Nothing was created. Ask what time they want and suggest 9 AM as an option " +
+    '(for example: "What time should I schedule it? I can do 9 AM if that works."). ' +
+    "Then call again with the time they state (or 9 AM only if they agree), with time_source user_stated.",
+);
+
+/** A date with no time, or a model that says the time wasn't given, must not be turned into a task. */
+function timeMissing(due_at: string, source: z.infer<typeof timeSource>) {
+  return source === "not_specified" || DATE_ONLY_RE.test(due_at.trim());
+}
+
+type PendingTask = { id: string; title: string; due_at: string };
+
+async function pendingForOpportunity(ctx: CrmContext, opportunityId: string): Promise<PendingTask[]> {
+  const { data } = await ctx.db
+    .from("tasks")
+    .select("id, title, due_at")
+    .eq("user_id", ctx.userId)
+    .eq("opportunity_id", opportunityId)
+    .eq("status", "pending")
+    .order("due_at", { ascending: true });
+  return data ?? [];
+}
+
+const describeTask = (t: PendingTask, tz: string) => ({
+  id: t.id,
+  title: t.title,
+  due_at: t.due_at,
+  spoken_due: formatSpoken(new Date(t.due_at), tz),
+});
 
 export async function createFollowUp(ctx: CrmContext, input: unknown) {
   const parsed = createFollowUpInput.safeParse(input);
   if (!parsed.success) {
     return invalid(parsed.error, "due_at is required: use a local ISO date-time such as 2026-10-02T09:00:00.");
   }
-  const { contact_id, opportunity_id, title, due_at } = parsed.data;
+  const { contact_id, opportunity_id, title, due_at, time_source, add_another } = parsed.data;
+
+  if (timeMissing(due_at, time_source)) return TIME_REQUIRED;
 
   const due = parseDueAt(due_at, ctx.timeZone);
   if (!due) return fail("invalid_date", "due_at must be an ISO 8601 date-time like 2026-10-02T09:00:00. Resolve words like 'tomorrow' yourself.");
@@ -247,6 +313,22 @@ export async function createFollowUp(ctx: CrmContext, input: unknown) {
       .select("id, title, due_at")
       .maybeSingle();
     if (adopted.data) return { ...taskResult(adopted.data, ctx.timeZone, contact.data.name, false), adopted_automation: true };
+
+    // Don't silently stack a second follow-up on the same deal: make the user choose.
+    if (!add_another) {
+      const pending = await pendingForOpportunity(ctx, opportunity_id);
+      if (pending.length > 0) {
+        return {
+          ok: false as const,
+          code: "follow_up_exists",
+          existing: pending.map((t) => describeTask(t, ctx.timeZone)),
+          message:
+            "This deal already has a pending follow-up (see existing). Nothing was created. Ask whether to " +
+            "reschedule the existing one (use reschedule_follow_up) or add another one (call create_follow_up again " +
+            "with add_another true). If the user said to change/move it, reschedule.",
+        };
+      }
+    }
   }
 
   const inserted = await ctx.db
@@ -270,6 +352,135 @@ export async function createFollowUp(ctx: CrmContext, input: unknown) {
     return fail("db_error", "I couldn't create the follow-up.");
   }
   return taskResult(inserted.data, ctx.timeZone, contact.data.name, false);
+}
+
+// -------------------------------------------------------- find_follow_ups
+export const findFollowUpsInput = z
+  .object({ contact_id: optionalUuid, opportunity_id: optionalUuid })
+  .refine((v) => v.contact_id || v.opportunity_id, { message: "contact_id or opportunity_id is required" });
+
+export async function findFollowUps(ctx: CrmContext, input: unknown) {
+  const parsed = findFollowUpsInput.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error, "Pass the contact_id and/or opportunity_id from earlier tool results.");
+  const { contact_id, opportunity_id } = parsed.data;
+
+  let q = ctx.db
+    .from("tasks")
+    .select("id, title, due_at, contacts(name), opportunities(title)")
+    .eq("user_id", ctx.userId)
+    .eq("status", "pending")
+    .order("due_at", { ascending: true })
+    .limit(10);
+  if (contact_id) q = q.eq("contact_id", contact_id);
+  if (opportunity_id) q = q.eq("opportunity_id", opportunity_id);
+
+  const { data, error } = await q;
+  if (error) return fail("db_error", "I couldn't load follow-ups right now.");
+  const rows = (data ?? []) as unknown as (PendingTask & {
+    contacts: { name: string } | null;
+    opportunities: { title: string } | null;
+  })[];
+
+  return {
+    ok: true as const,
+    status: rows.length === 0 ? ("none" as const) : rows.length === 1 ? ("single" as const) : ("multiple" as const),
+    follow_ups: rows.map((t) => ({
+      ...describeTask(t, ctx.timeZone),
+      contact: t.contacts?.name ?? null,
+      opportunity: t.opportunities?.title ?? null,
+    })),
+    ...(rows.length > 1 && { message: "Several pending follow-ups. Ask which one, unless the user already made it clear." }),
+  };
+}
+
+// ---------------------------------------------------- reschedule_follow_up
+export const rescheduleFollowUpInput = z.object({
+  task_id: uuid,
+  due_at: z.string().trim().min(1).max(100),
+  time_source: timeSource.default("user_stated"),
+});
+
+export async function rescheduleFollowUp(ctx: CrmContext, input: unknown) {
+  const parsed = rescheduleFollowUpInput.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error, "Use a task id from find_follow_ups and a local ISO date-time.");
+  const { task_id, due_at, time_source } = parsed.data;
+
+  if (timeMissing(due_at, time_source)) return TIME_REQUIRED;
+  const due = parseDueAt(due_at, ctx.timeZone);
+  if (!due) return fail("invalid_date", "due_at must be an ISO 8601 date-time like 2026-10-02T21:00:00.");
+  const now = (ctx.now ?? (() => new Date()))();
+  if (due.getTime() < now.getTime() - PAST_GRACE_MS) {
+    return fail("date_in_past", "That date/time is in the past. Ask the user for a future time.");
+  }
+
+  const current = await ctx.db
+    .from("tasks")
+    .select("id, title, due_at, status")
+    .eq("id", task_id)
+    .eq("user_id", ctx.userId)
+    .maybeSingle();
+  if (current.error) return fail("db_error", "I couldn't load that follow-up right now.");
+  if (!current.data) return fail("not_found", "That follow-up doesn't exist.");
+  if (current.data.status !== "pending") {
+    return fail("not_pending", `That follow-up is already ${current.data.status}, so it can't be rescheduled.`);
+  }
+
+  const { data, error } = await ctx.db
+    .from("tasks")
+    .update({ due_at: due.toISOString() })
+    .eq("id", task_id)
+    .eq("user_id", ctx.userId)
+    .eq("status", "pending")
+    .select("id, title, due_at")
+    .maybeSingle();
+  if (error) return fail("db_error", "I couldn't reschedule the follow-up.");
+  if (!data) return fail("not_found", "That follow-up is no longer pending.");
+
+  return {
+    ok: true as const,
+    task: { id: data.id, title: data.title, due_at: data.due_at },
+    previous_spoken_due: formatSpoken(new Date(current.data.due_at), ctx.timeZone),
+    spoken_due: formatSpoken(new Date(data.due_at), ctx.timeZone),
+  };
+}
+
+// ------------------------------------------------------- cancel_follow_up
+export const cancelFollowUpInput = z.object({ task_id: uuid });
+
+/** "Remove/delete a follow-up" by voice = cancel it. Nothing is hard-deleted; it stays in the activity log. */
+export async function cancelFollowUp(ctx: CrmContext, input: unknown) {
+  const parsed = cancelFollowUpInput.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error, "Use a task id from find_follow_ups.");
+  const { task_id } = parsed.data;
+
+  const current = await ctx.db
+    .from("tasks")
+    .select("id, title, due_at, status")
+    .eq("id", task_id)
+    .eq("user_id", ctx.userId)
+    .maybeSingle();
+  if (current.error) return fail("db_error", "I couldn't load that follow-up right now.");
+  if (!current.data) return fail("not_found", "That follow-up doesn't exist.");
+  if (current.data.status !== "pending") {
+    return fail("not_pending", `That follow-up is already ${current.data.status}.`);
+  }
+
+  const { data, error } = await ctx.db
+    .from("tasks")
+    .update({ status: "cancelled" })
+    .eq("id", task_id)
+    .eq("user_id", ctx.userId)
+    .eq("status", "pending")
+    .select("id, title, due_at")
+    .maybeSingle();
+  if (error) return fail("db_error", "I couldn't cancel the follow-up.");
+  if (!data) return fail("not_found", "That follow-up is no longer pending.");
+
+  return {
+    ok: true as const,
+    task: { id: data.id, title: data.title },
+    cancelled_spoken_due: formatSpoken(new Date(data.due_at), ctx.timeZone),
+  };
 }
 
 async function findDuplicate(ctx: CrmContext, opportunityId: string, title: string, due: Date) {

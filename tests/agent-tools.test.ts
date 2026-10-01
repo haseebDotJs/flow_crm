@@ -56,7 +56,8 @@ before(async () => {
   const o = await findOpportunities(ctx, { contact_id: johnId });
   assert.ok(o.ok);
   oppId = o.opportunities[0].id;
-  // make sure the scenario starts from `new`
+  // make sure the scenario starts clean: stage `new`, no leftover follow-ups
+  await db.from("tasks").delete().eq("opportunity_id", oppId);
   await updateOpportunityStage(ctx, { opportunity_id: oppId, stage: "new" });
 });
 
@@ -148,6 +149,7 @@ describe("update_opportunity_stage", () => {
     assert.ok(r.ok && r.changed);
     assert.equal(r.opportunity.stage, "qualified");
     assert.equal(r.opportunity.previous_stage, "new");
+    assert.ok("default_follow_up" in r && r.default_follow_up?.in === "two days", "reports the automatic follow-up");
     const { data } = await db.from("opportunities").select("stage").eq("id", oppId).single();
     assert.equal(data?.stage, "qualified");
   });
@@ -177,12 +179,27 @@ describe("create_follow_up", () => {
     const { data } = await db.from("tasks").select("id").eq("opportunity_id", oppId).eq("title", input.title);
     assert.equal(data?.length, 1);
   });
-  it("accepts a date-only due_at and blank/null optional opportunity_id", async () => {
-    const d = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
-    const r = await createFollowUp(ctx, { contact_id: johnId, opportunity_id: "", title: "date-only test", due_at: d });
+  it("treats a blank optional opportunity_id as absent", async () => {
+    const d = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10) + "T11:00:00";
+    const r = await createFollowUp(ctx, { contact_id: johnId, opportunity_id: "", title: "no-opp test", due_at: d });
     assert.ok(r.ok);
     createdTaskIds.push(r.task.id);
     assert.equal(new Date(r.task.due_at).toISOString(), parseDueAt(d, TZ)!.toISOString());
+  });
+  it("refuses to guess a time: date-only or not_specified creates nothing", async () => {
+    const day = new Date(Date.now() + 4 * 86_400_000).toISOString().slice(0, 10);
+    const dateOnly = await createFollowUp(ctx, { contact_id: johnId, title: "guess test", due_at: day });
+    assert.ok(!dateOnly.ok && dateOnly.code === "time_required");
+    assert.ok(!dateOnly.ok && /9 AM/.test(dateOnly.message), "tells the model to suggest 9 AM");
+    const unspecified = await createFollowUp(ctx, {
+      contact_id: johnId,
+      title: "guess test",
+      due_at: `${day}T09:00:00`,
+      time_source: "not_specified",
+    });
+    assert.ok(!unspecified.ok && unspecified.code === "time_required");
+    const { data } = await db.from("tasks").select("id").eq("title", "guess test");
+    assert.equal(data?.length, 0, "no task may be created without a user-chosen time");
   });
   it("names the offending field when input is invalid", async () => {
     const r = await createFollowUp(ctx, { contact_id: johnId, title: "x" });

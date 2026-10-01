@@ -16,7 +16,7 @@ export default async function DashboardPage() {
     supabase.from("opportunities").select("stage, value"),
     supabase
       .from("tasks")
-      .select("*, contacts(id, name), opportunities(id, title)")
+      .select("*, contacts(id, name, email), opportunities(id, title), email_templates(id, name)")
       .eq("status", "pending")
       .order("due_at", { ascending: true, nullsFirst: false })
       .limit(6),

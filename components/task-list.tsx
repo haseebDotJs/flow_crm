@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge } from "@/components/badge";
+import { EmailAutomation } from "@/components/email-automation";
 import { TaskActions } from "@/components/stage-select";
 import { BUCKET_STYLES, dueBucket, formatDateTime } from "@/lib/utils";
 import type { Task } from "@/types";
@@ -29,6 +30,7 @@ export function TaskList({ tasks }: { tasks: Task[] }) {
                   </Link>
                 )}
               </p>
+              <EmailAutomation task={t} />
             </div>
             <div className="flex items-center gap-3">
               {t.status === "pending" ? (

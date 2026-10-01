@@ -15,12 +15,14 @@ export function Modal({
   triggerClassName = "btn-primary",
   triggerIcon,
   title,
+  wide = false,
   children,
 }: {
   triggerLabel: string;
   triggerClassName?: string;
   triggerIcon?: React.ReactNode;
   title: string;
+  wide?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -42,7 +44,7 @@ export function Modal({
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
           onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}
         >
-          <div role="dialog" aria-modal="true" aria-label={title} className="card w-full max-w-md p-5">
+          <div role="dialog" aria-modal="true" aria-label={title} className={`card max-h-[90vh] w-full overflow-y-auto p-5 ${wide ? "max-w-2xl" : "max-w-md"}`}>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-semibold">{title}</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="text-slate-400 hover:text-slate-600">

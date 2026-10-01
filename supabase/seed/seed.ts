@@ -135,6 +135,12 @@ async function main() {
   await must(admin.from("webhook_deliveries").delete().eq("user_id", userId));
   await must(admin.from("webhook_endpoints").delete().eq("user_id", userId));
   await must(admin.from("api_keys").delete().eq("user_id", userId));
+  // Reset email: clear the log, restore the default templates, and keep test mode on.
+  // (The user's chosen test recipient is deliberately kept.)
+  await must(admin.from("email_log").delete().eq("user_id", userId));
+  await must(admin.from("email_templates").delete().eq("user_id", userId));
+  await must(admin.rpc("create_default_email_templates", { p_user: userId }));
+  await must(admin.from("profiles").update({ email_test_mode: true }).eq("id", userId));
 
   console.log(`Seeded demo data for ${DEMO_EMAIL} (password in supabase/seed/seed.ts).`);
 }

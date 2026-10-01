@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import {
   type ActionResult,
 } from "@/app/(app)/actions";
 import { useModalClose } from "@/components/modal";
+import { createClient } from "@/lib/supabase/client";
 import { STAGES, STAGE_LABELS, type Contact } from "@/types";
 
 function useSubmit(action: (fd: FormData) => Promise<ActionResult>, success: string, onDone?: () => void) {
@@ -196,7 +197,42 @@ export function TaskForm({
         <label className="label" htmlFor="t-desc">Description</label>
         <textarea id="t-desc" name="description" rows={2} className="input" />
       </div>
+      <EmailOption />
       <Footer pending={pending} error={error} label="Create task" onCancel={cancel} />
     </form>
+  );
+}
+
+/** Optional "email the contact automatically when due" part of the task form. */
+function EmailOption() {
+  const [on, setOn] = useState(false);
+  const [templates, setTemplates] = useState<{ id: string; name: string }[] | null>(null);
+
+  useEffect(() => {
+    createClient()
+      .from("email_templates")
+      .select("id, name")
+      .order("name")
+      .then(({ data }) => setTemplates(data ?? []));
+  }, []);
+
+  return (
+    <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <label className="flex cursor-pointer items-center gap-2 text-sm">
+        <input type="checkbox" name="auto_email" checked={on} onChange={(e) => setOn(e.target.checked)} />
+        Email the contact automatically when this is due
+      </label>
+      {on && (
+        <div>
+          <label className="label" htmlFor="t-template">Template</label>
+          <select id="t-template" name="email_template_id" className="input" defaultValue="" required>
+            <option value="" disabled>{templates === null ? "Loading…" : "Choose a template…"}</option>
+            {templates?.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
   );
 }

@@ -20,7 +20,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
     supabase.from("opportunities").select("*, contacts(id, name, company)").eq("id", id).maybeSingle(),
     supabase
       .from("tasks")
-      .select("*, contacts(id, name), opportunities(id, title)")
+      .select("*, contacts(id, name, email), opportunities(id, title), email_templates(id, name)")
       .eq("opportunity_id", id)
       .order("due_at", { ascending: true, nullsFirst: false }),
   ]);

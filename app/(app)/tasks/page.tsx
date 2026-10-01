@@ -22,7 +22,7 @@ export default async function TasksPage() {
   const [tasks, contacts, opps] = await Promise.all([
     supabase
       .from("tasks")
-      .select("*, contacts(id, name), opportunities(id, title)")
+      .select("*, contacts(id, name, email), opportunities(id, title), email_templates(id, name)")
       .order("due_at", { ascending: true, nullsFirst: false }),
     supabase.from("contacts").select("id, name").order("name"),
     supabase.from("opportunities").select("id, title").order("title"),

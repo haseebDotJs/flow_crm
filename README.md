@@ -18,7 +18,8 @@ FlowCRM understands that, finds the records, updates the pipeline, schedules the
 - Activity log: every create/update/delete of contacts, deals and tasks is recorded and labeled as made by you, the Voice AI, or automation (Activity page and dashboard card)
 - Basic role field (`admin` / `member`) on profiles, shown in the sidebar
 - Integrations: signed outbound webhook on every stage change (for n8n / Make / Zapier) and an API-key-protected inbound lead endpoint
-- Workflow automation: moving an opportunity from New to Qualified automatically creates a "Follow up with <contact>" task two days out (marked "Auto")
+- Email templates (create/edit/delete, variables, live preview) and **automated follow-up emails**: when a follow-up with automation on comes due, FlowCRM sends the email, completes the task and logs it. A **Run automation now** button runs the same real logic on demand
+- Workflow automation: moving an opportunity from New to Qualified automatically creates a "Follow up with <contact>" task two days out (marked "Auto") with the default email template attached
 - Row Level Security on every CRM table; reproducible SQL migrations and seed data
 
 ## Architecture
@@ -100,6 +101,8 @@ Open http://localhost:3000, log in with the demo user, click **Talk to your CRM*
 | `LIVEKIT_URL` | web (server), agent | LiveKit Cloud WebSocket URL, `wss://…` |
 | `LIVEKIT_API_KEY` | web (server), agent | LiveKit API key |
 | `LIVEKIT_API_SECRET` | web (server), agent | LiveKit API secret |
+| `RESEND_API_KEY` | `npm run email:setup` only | Email provider key. It is moved into Supabase Vault; the app never reads it at runtime |
+| `EMAIL_FROM` | `npm run email:setup` only | Optional sender address (needs a domain verified in Resend) |
 | `SUPABASE_DB_PASSWORD` | Supabase CLI (optional) | Lets `supabase link` / `db push` run without prompting |
 
 None of the secrets use the `NEXT_PUBLIC_` prefix, so none reach browser bundles.
@@ -170,6 +173,41 @@ curl -X POST http://localhost:3000/api/webhooks/leads   -H "Authorization: Beare
 Responses: `201` created, `401` bad/missing key, `422` invalid payload, `413` too large, `429` rate limited.
 The lead shows up in the pipeline and is labeled **Webhook** in the activity log.
 
+## Email templates and automated follow-up emails
+
+The core story: **stage change → automatic follow-up → scheduled email → visible result.**
+
+```text
+New → Qualified
+      ↓
+Follow-up task created   (template "Follow-up After Qualification" attached, automation ON)
+      ↓
+Task reaches its due time          ← pg_cron checks every minute (or: Run automation now)
+      ↓
+send_task_email(): render template → send via Resend
+      ↓
+Provider accepts → email logged, task completed, activity logged
+```
+
+- **Templates** (sidebar → **Email**): create, edit and delete; three defaults per user; variables `{{first_name}}`, `{{contact_name}}`, `{{company}}`, `{{opportunity_title}}`, `{{sender_name}}`; live preview. Emails are plain text.
+- **On a follow-up** (Tasks page, or the create form): *Automation ON/OFF* and a template. The follow-up created by the New → Qualified automation gets the default template. If you retime it (by voice or in the UI) the email stays attached.
+- **Scheduler:** a `pg_cron` job inside Supabase runs `process_due_follow_up_emails()` every minute. No extra server or platform.
+- **Run automation now:** the button calls the *same* `send_task_email()` function the scheduler uses, ignoring the due time. The panel shows what really happened (read from the database): *Email sent → Task completed → Activity logged*, or the real error with a Retry.
+- **Reliable by design:** a task is only completed after the provider accepts the email. Failures stay pending with the reason and retry up to 3 times automatically. An email is sent at most once per follow-up (atomic claim, so a double click or overlapping run can't double-send). Everything is in the activity log, attributed to *Automation*.
+- **Test mode (on by default):** every email goes to *your own* address, with the intended recipient in the subject, so demos never email real contacts. Turn it off on the Email page to send to contacts.
+
+### Email setup
+
+1. Create a free account at https://resend.com and an API key.
+2. Put it in `.env.local` as `RESEND_API_KEY` (optionally `EMAIL_FROM`), then run:
+   ```bash
+   npm run email:setup
+   ```
+   This stores the key in Supabase Vault (encrypted). It is never printed and never reaches the browser, the web app or the agent: only the database function that sends emails can read it.
+3. With Resend's free sandbox sender you can only email **your Resend account's own address**. On the **Email** page set *Test recipient* to that address (or verify a domain in Resend to send to anyone).
+
+> Limitation: the test recipient is user-editable, so a multi-tenant production deployment would need verified recipient addresses (or a verified sending domain with rate limits) to prevent misuse as an email relay.
+
 ## Workflow automation
 
 A Postgres trigger (`supabase/migrations/20261001010000_qualified_automation.sql`) creates the follow-up, so it fires no matter whether the change comes from the UI, the Voice AI, or anywhere else. It skips deals that already have a pending follow-up, and a unique index allows at most one pending automatic task per opportunity.
@@ -200,6 +238,9 @@ npm run test:automation  # New -> Qualified automation and its hand-off with the
 npm run test:activity    # activity log, actor attribution, log access control, role rules
 npm run test:integrations      # outbound webhook (signature verified on real delivery) and inbound lead API
 npm run test:integrations-app  # SSRF guard + the lead endpoint over HTTP (needs `npm run dev` running)
+npm run test:followups   # voice follow-up rules: ask for a time, reschedule, cancel
+npm run test:email       # templates, sending (stand-in endpoint), scheduler, retries, access control
+npm run test:email-render  # browser preview renderer == database renderer
 npm test              # everything above
 npm run e2e:voice     # needs `npm run agent:dev` running; sends the acceptance sentence as text
 npm run lint

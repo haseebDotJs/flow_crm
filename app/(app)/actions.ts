@@ -36,6 +36,8 @@ const taskSchema = z.object({
   description: optionalText,
   contact_id: z.string().uuid().nullable().optional().transform((v) => v ?? null),
   opportunity_id: z.string().uuid().nullable().optional().transform((v) => v ?? null),
+  auto_email: z.preprocess((v) => v === "on" || v === true || v === "true", z.boolean()).default(false),
+  email_template_id: z.string().uuid().nullable().optional().transform((v) => v ?? null),
   due_at: z
     .string()
     .min(1, "Due date is required")
@@ -47,7 +49,7 @@ const taskSchema = z.object({
       }
       return d.toISOString();
     }),
-});
+}).refine((t) => !t.auto_email || t.email_template_id, { message: "Choose an email template, or turn the automation off", path: ["email_template_id"] });
 
 function fail(error: string): ActionResult {
   return { ok: false, error };

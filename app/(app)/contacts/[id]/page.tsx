@@ -22,7 +22,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
     supabase.from("opportunities").select("*").eq("contact_id", id).order("created_at", { ascending: false }),
     supabase
       .from("tasks")
-      .select("*, contacts(id, name), opportunities(id, title)")
+      .select("*, contacts(id, name, email), opportunities(id, title), email_templates(id, name)")
       .eq("contact_id", id)
       .order("due_at", { ascending: true, nullsFirst: false }),
   ]);

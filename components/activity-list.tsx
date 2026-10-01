@@ -26,6 +26,8 @@ const ACTION: Record<string, string> = {
   cancelled: "Cancelled",
   reopened: "Reopened",
   rescheduled: "Rescheduled",
+  email_sent: "Email sent",
+  email_failed: "Email failed",
 };
 
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
@@ -72,6 +74,17 @@ function Change({ e }: { e: ActivityEntry }) {
         <ArrowRight className="h-3 w-3 text-slate-400" aria-label="to" /> {formatDateTime(m.to as string)}
       </span>
     );
+  }
+  if (e.action === "email_sent" && str(m.to)) {
+    return (
+      <span className="text-xs text-slate-600">
+        to {m.to as string}
+        {m.test_mode === true ? " (test mode)" : ""}
+      </span>
+    );
+  }
+  if (e.action === "email_failed" && str(m.error)) {
+    return <span className="text-xs text-red-600">{(m.error as string).slice(0, 80)}</span>;
   }
   if (e.action === "updated" && Array.isArray(m.changed) && m.changed.length > 0) {
     return <span className="text-xs text-slate-500">({(m.changed as string[]).join(", ").replaceAll("_", " ")})</span>;

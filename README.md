@@ -104,6 +104,7 @@ Open http://localhost:3000, log in with the demo user, click **Talk to your CRM*
 | `LIVEKIT_API_SECRET` | web (server), agent | LiveKit API secret |
 | `RESEND_API_KEY` | `npm run email:setup` only | Email provider key. It is moved into Supabase Vault; the app never reads it at runtime |
 | `EMAIL_FROM` | `npm run email:setup` only | Optional sender address (needs a domain verified in Resend) |
+| `EMAIL_TEST_RECIPIENT` | `npm run seed` only | Inbox that receives demo emails while test mode is on (your Resend account email for the sandbox) |
 | `SUPABASE_DB_PASSWORD` | Supabase CLI (optional) | Lets `supabase link` / `db push` run without prompting |
 
 None of the secrets use the `NEXT_PUBLIC_` prefix, so none reach browser bundles.
@@ -205,7 +206,7 @@ Provider accepts → email logged, task completed, activity logged
    npm run email:setup
    ```
    This stores the key in Supabase Vault (encrypted). It is never printed and never reaches the browser, the web app or the agent: only the database function that sends emails can read it.
-3. With Resend's free sandbox sender you can only email **your Resend account's own address**. On the **Email** page set *Test recipient* to that address (or verify a domain in Resend to send to anyone).
+3. With Resend's free sandbox sender you can only email **your Resend account's own address**. Put that address in `.env.local` as `EMAIL_TEST_RECIPIENT` and run `npm run seed`; it is applied to the demo user. (You can also change it on the **Email** page. Or verify a domain in Resend to send to anyone.)
 
 > Limitation: the test recipient is user-editable, so a multi-tenant production deployment would need verified recipient addresses (or a verified sending domain with rate limits) to prevent misuse as an email relay.
 

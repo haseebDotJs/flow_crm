@@ -22,6 +22,14 @@ if (!url || !secret) {
 
 const admin = createClient(url, secret, { auth: { persistSession: false, autoRefreshToken: false } });
 
+async function demoLoginWorks(): Promise<boolean> {
+  const publishable = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!publishable) return false;
+  const client = createClient(url!, publishable, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { error } = await client.auth.signInWithPassword({ email: DEMO_EMAIL, password: DEMO_PASSWORD });
+  return !error;
+}
+
 async function getOrCreateDemoUser(): Promise<string> {
   const { data, error } = await admin.auth.admin.createUser({
     email: DEMO_EMAIL,
@@ -38,7 +46,11 @@ async function getOrCreateDemoUser(): Promise<string> {
       if (list.error) throw list.error;
       const found = list.data.users.find((u) => u.email === DEMO_EMAIL);
       if (found) {
-        await admin.auth.admin.updateUserById(found.id, { password: DEMO_PASSWORD, email_confirm: true });
+        // Only reset the password when the documented login doesn't already work: resetting it
+        // signs the user out everywhere, which is annoying when you just want fresh demo data.
+        if (!(await demoLoginWorks())) {
+          await admin.auth.admin.updateUserById(found.id, { password: DEMO_PASSWORD, email_confirm: true });
+        }
         return found.id;
       }
       if (list.data.users.length < 100) break;
@@ -135,8 +147,18 @@ async function main() {
   await must(admin.from("webhook_deliveries").delete().eq("user_id", userId));
   await must(admin.from("webhook_endpoints").delete().eq("user_id", userId));
   await must(admin.from("api_keys").delete().eq("user_id", userId));
+  // Test recipient for demo emails (EMAIL_TEST_RECIPIENT in .env.local). With Resend's sandbox
+  // sender this must be your Resend account's email. If unset, whatever is already saved is kept.
+  const recipient = process.env.EMAIL_TEST_RECIPIENT?.trim();
+  if (recipient) {
+    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipient)) {
+      await must(admin.from("profiles").update({ email_test_recipient: recipient }).eq("id", userId));
+    } else {
+      console.warn("EMAIL_TEST_RECIPIENT is not a valid email address; ignoring it.");
+    }
+  }
   // Reset email: clear the log, restore the default templates, and keep test mode on.
-  // (The user's chosen test recipient is deliberately kept.)
+  // (A test recipient saved in the app is kept unless EMAIL_TEST_RECIPIENT is set.)
   await must(admin.from("email_log").delete().eq("user_id", userId));
   await must(admin.from("email_templates").delete().eq("user_id", userId));
   await must(admin.rpc("create_default_email_templates", { p_user: userId }));

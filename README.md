@@ -22,10 +22,6 @@ FlowCRM understands that, finds the records, updates the pipeline, schedules the
 - Workflow automation: moving an opportunity from New to Qualified automatically creates a "Follow up with <contact>" task two days out (marked "Auto") with the default email template attached
 - Row Level Security on every CRM table; reproducible SQL migrations and seed data
 
-## Demo
-
-See **[docs/DEMO.md](docs/DEMO.md)** for the demo script, the exact voice phrases, a pre-flight checklist and troubleshooting. Before presenting, run `npm run seed` (clean data) and `npm run demo:check` (verifies everything).
-
 ## Architecture
 
 ### System overview
@@ -39,7 +35,7 @@ flowchart LR
   subgraph Supabase
     AUTH["Auth"]
     DB[("PostgreSQL + RLS")]
-    CRON["pg_cron<br/>every minute (10 s in demo mode)"]
+    CRON["pg_cron<br/>every minute"]
     NET["pg_net"]
     VAULT["Vault<br/>(email key)"]
   end
@@ -100,7 +96,7 @@ Inbound:   Form / n8n / Zapier → POST /api/webhooks/leads → ingest_lead() (A
    npm install
    ```
 2. **Create a Supabase project** at https://supabase.com/dashboard.
-   In Authentication → Sign In / Providers → Email, turn off **Confirm email** for the demo.
+   In Authentication → Sign In / Providers → Email, turn off **Confirm email** so sign-up works without an email server.
 3. **Configure environment variables**
    ```bash
    cp .env.example .env.local
@@ -116,7 +112,7 @@ Inbound:   Form / n8n / Zapier → POST /api/webhooks/leads → ingest_lead() (A
    ```bash
    npm run seed
    ```
-   Re-running the seed resets the demo user's password, which signs that user out everywhere; just log in again.
+   Re-running the seed resets the seeded data back to its starting state.
 6. **Create a LiveKit Cloud project** at https://cloud.livekit.io.
 7. **Configure LiveKit credentials** in `.env.local` (`LIVEKIT_URL` must start with `wss://`).
    The agent uses LiveKit Inference (speech-to-text, LLM, text-to-speech) billed through your LiveKit project, so no separate AI provider keys are needed.
@@ -143,8 +139,7 @@ Open http://localhost:3000, log in with the demo user, click **Talk to your CRM*
 | `LIVEKIT_API_SECRET` | web (server), agent | LiveKit API secret |
 | `RESEND_API_KEY` | `npm run email:setup` only | Email provider key. It is moved into Supabase Vault; the app never reads it at runtime |
 | `EMAIL_FROM` | `npm run email:setup` only | Optional sender address (needs a domain verified in Resend) |
-| `DEMO` | `npm run dev` (predev), `npm run seed` | `true` = demo timing: Qualified follow-ups due in 30 s, scheduler every 10 s. Copied into the database by `npm run demo:apply` |
-| `EMAIL_TEST_RECIPIENT` | `npm run seed` only | Inbox that receives demo emails while test mode is on (your Resend account email for the sandbox) |
+| `EMAIL_TEST_RECIPIENT` | `npm run seed` only | Inbox that receives test emails while test mode is on (your Resend account email for the sandbox) |
 | `SUPABASE_DB_PASSWORD` | Supabase CLI (optional) | Lets `supabase link` / `db push` run without prompting |
 
 None of the secrets use the `NEXT_PUBLIC_` prefix, so none reach browser bundles.
@@ -236,7 +231,7 @@ Provider accepts → email logged, task completed, activity logged
 - **Scheduler:** a `pg_cron` job inside Supabase runs `process_due_follow_up_emails()` every minute. No extra server or platform.
 - **Run automation now:** the button calls the *same* `send_task_email()` function the scheduler uses, ignoring the due time. The panel shows what really happened (read from the database): *Email sent → Task completed → Activity logged*, or the real error with a Retry.
 - **Reliable by design:** a task is only completed after the provider accepts the email. Failures stay pending with the reason and retry up to 3 times automatically. An email is sent at most once per follow-up (atomic claim, so a double click or overlapping run can't double-send). Everything is in the activity log, attributed to *Automation*.
-- **Test mode (on by default):** every email goes to *your own* address, with the intended recipient in the subject, so demos never email real contacts. Turn it off on the Email page to send to contacts.
+- **Test mode (on by default):** every email goes to *your own* address, with the intended recipient in the subject, so nothing reaches a real contact by accident. Turn it off on the Email page to send to contacts.
 
 ### Email setup
 
@@ -247,16 +242,6 @@ Provider accepts → email logged, task completed, activity logged
    ```
    This stores the key in Supabase Vault (encrypted). It is never printed and never reaches the browser, the web app or the agent: only the database function that sends emails can read it.
 3. With Resend's free sandbox sender you can only email **your Resend account's own address**. Put that address in `.env.local` as `EMAIL_TEST_RECIPIENT` and run `npm run seed`; it is applied to the demo user. (You can also change it on the **Email** page. Or verify a domain in Resend to send to anyone.)
-
-### Demo mode (show the scheduler working live)
-
-Waiting two days to show a scheduled email isn't practical, so set `DEMO=true` in `.env.local`:
-
-- the follow-up created when a deal moves to **Qualified** is due in **30 seconds** (instead of 2 days),
-- the scheduler checks every **10 seconds** (instead of every minute),
-- so the email goes out roughly **30-40 seconds** after the stage change, with no button press. The Tasks page shows a live countdown ("Scheduled · sends in 24s"), then the task completes by itself and Activity logs the email.
-
-A *Demo* badge appears in the sidebar, and the Email page explains what is on. The database can't read `.env`, so `DEMO` is copied into it by `npm run demo:apply`, which runs automatically before `npm run dev` and on `npm run seed`. Set `DEMO=false` (or remove it) and restart `npm run dev` to return to normal timing. The *Run automation now* button works in both modes.
 
 > Limitation: the test recipient is user-editable, so a multi-tenant production deployment would need verified recipient addresses (or a verified sending domain with rate limits) to prevent misuse as an email relay.
 
@@ -298,8 +283,6 @@ npm run test:integrations-app  # SSRF guard + the lead endpoint over HTTP (needs
 npm run test:followups   # voice follow-up rules: ask for a time, reschedule, cancel
 npm run test:email       # templates, sending (stand-in endpoint), scheduler, retries, access control
 npm run test:email-render  # browser preview renderer == database renderer
-npm run test:demo        # demo mode: 30-second follow-ups, scheduler retiming, voice wording
-npm run test:scheduler   # LIVE (about 1 min, not in npm test): the real scheduler fires on time in demo mode
 npm test              # everything above
 npm run e2e:voice     # needs `npm run agent:dev` running; sends the acceptance sentence as text
 npm run lint

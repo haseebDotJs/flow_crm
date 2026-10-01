@@ -100,7 +100,27 @@ describe("activity log: what gets recorded", () => {
     const last = logs[logs.length - 1];
     assert.equal(last.action, "stage_changed");
     assert.equal(last.summary, "Moved Acme Enterprise License from New to Proposal");
-    assert.deepEqual(last.metadata, { from: "new", to: "proposal" });
+    assert.equal(last.metadata.from, "new");
+    assert.equal(last.metadata.to, "proposal");
+  });
+
+  it("records who and what: title, contact and company travel with each entry", async () => {
+    const last = (await logsFor(oppId)).at(-1)!;
+    assert.deepEqual(
+      { title: last.metadata.title, contact: last.metadata.contact, company: last.metadata.company },
+      { title: "Acme Enterprise License", contact: "John Smith", company: "Acme Inc." },
+    );
+
+    const t = await demo
+      .from("tasks")
+      .insert({ user_id: demoId, title: "Context task", opportunity_id: oppId, contact_id: contactId, due_at: new Date(Date.now() + 86_400_000).toISOString() })
+      .select("id")
+      .single();
+    const taskLog = (await logsFor(t.data!.id))[0];
+    assert.equal(taskLog.metadata.title, "Context task");
+    assert.equal(taskLog.metadata.contact, "John Smith");
+    assert.equal(taskLog.metadata.opportunity, "Acme Enterprise License");
+    await demo.from("tasks").delete().eq("id", t.data!.id);
   });
 
   it("does not log no-op updates", async () => {
